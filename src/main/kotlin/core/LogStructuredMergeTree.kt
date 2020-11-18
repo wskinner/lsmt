@@ -43,6 +43,8 @@ class StandardLogStructuredMergeTree(
     override fun start() {}
 
     override fun close() {
+        println("Shutting down LSMT")
+        ssTable.addTableAsync(writeAheadLog.rotate())
         writeAheadLog.close()
         ssTable.close()
     }

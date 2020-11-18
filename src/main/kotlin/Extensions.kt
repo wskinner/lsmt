@@ -1,6 +1,6 @@
 import core.*
-import log.BinaryWriteAheadLogReader
 import log.CountingInputStream
+import log.createLogReader
 import table.SSTableMetadata
 import java.io.InputStream
 import java.nio.file.Paths
@@ -32,9 +32,7 @@ infix fun KeyRange.overlaps(other: KeyRange): Boolean = other.contains(start) ||
 
 fun KeyRange.merge(other: KeyRange): KeyRange = KeyRange(min(start, other.start), max(endInclusive, other.endInclusive))
 
-fun concat(tables: Collection<SSTableMetadata>): Sequence<Entry> = sequence {
-    for (table in tables) {
-        val reader = BinaryWriteAheadLogReader(Paths.get(table.path))
-        yieldAll(reader.read())
-    }
+fun SSTableMetadata.toSequence(): Sequence<Entry> = sequence {
+    val reader = createLogReader(Paths.get(path))
+    yieldAll(reader.read())
 }

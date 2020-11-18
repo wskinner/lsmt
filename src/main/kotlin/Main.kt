@@ -1,9 +1,11 @@
 import core.LogStructuredMergeTree
 import core.StandardLevel
 import core.StandardLogStructuredMergeTree
+import core.maxLevelSize
 import log.BinaryWriteAheadLogManager
 import log.BinaryWriteAheadLogReader
 import log.BinaryWriteAheadLogWriter
+import log.createLogReader
 import table.*
 import java.io.File
 import java.util.*
@@ -31,10 +33,33 @@ fun test(times: Int, ops: Int, tree: LogStructuredMergeTree) {
     println(runs)
 }
 
+fun parseConfig(): Config {
+    return Config
+}
+
 fun main() {
     val manifestFile = File("./build/manifest/manifest.log")
     val sstableDir = File("./build/sstable")
     val walDir = File("./build/log")
+
+    val config = parseConfig()
+
+    val manifestManager = StandardManifestManager(
+        BinaryManifestWriter(
+            BinaryWriteAheadLogWriter(manifestFile.outputStream())
+        ),
+        BinaryManifestReader(
+            createLogReader(manifestFile.toPath())
+        ),
+        levelFactory = { StandardLevel() }
+    )
+
+    val tableController = StandardSSTableController(
+        sstableDir,
+        config.sstablePrefix,
+        config.maxSstableSize
+    )
+
     val tree = StandardLogStructuredMergeTree(
         {
             StandardMemTable(
@@ -43,20 +68,19 @@ fun main() {
         },
         StandardSSTableManager(
             File("./build/sstables"),
-            StandardManifestManager(
-                BinaryManifestWriter(
-                    BinaryWriteAheadLogWriter(manifestFile.outputStream())
-                ),
-                BinaryManifestReader(
-                    BinaryWriteAheadLogReader(manifestFile.toPath())
-                ),
-                levelFactory = { StandardLevel() }
-            ),
+            manifestManager,
             BinarySSTableReader(
                 sstableDir,
                 Config.sstablePrefix
             ),
-            Config
+            config,
+            tableController,
+            StandardCompactor(
+                manifestManager.levels(),
+                { maxLevelSize(it) },
+                { StandardLevel() },
+                tableController
+            )
         ),
         BinaryWriteAheadLogManager(
             walDir,
@@ -70,9 +94,9 @@ fun main() {
             test(5, 100_000, tree)
         }.join()
     }
+}
 
 //    print("Reads")
 //    for (i in 1..100000) {
 //        tree.get("person$i")
 //    }
-}

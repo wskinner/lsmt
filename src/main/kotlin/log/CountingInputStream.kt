@@ -13,6 +13,17 @@ class CountingInputStream(private val delegate: InputStream) : InputStream() {
         return delegate.read()
     }
 
+    override fun readNBytes(len: Int): ByteArray {
+        bytesRead += len
+        return delegate.readNBytes(len)
+    }
+
+    override fun readAllBytes(): ByteArray {
+        val result = delegate.readAllBytes()
+        bytesRead = result.size.toLong()
+        return result
+    }
+
     override fun available(): Int {
         return delegate.available()
     }

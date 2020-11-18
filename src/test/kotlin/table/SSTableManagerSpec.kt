@@ -1,13 +1,14 @@
 package table
 
 import Config
-import concat
+import StandardCompactor
 import core.*
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
 import log.BinaryWriteAheadLogManager
 import log.BinaryWriteAheadLogReader
 import log.BinaryWriteAheadLogWriter
+import log.createLogReader
 import java.util.*
 
 class SSTableManagerSpec : StringSpec({
@@ -19,7 +20,7 @@ class SSTableManagerSpec : StringSpec({
                 BinaryWriteAheadLogWriter(manifestFile.outputStream())
             ),
             BinaryManifestReader(
-                BinaryWriteAheadLogReader(manifestFile.toPath())
+                createLogReader(manifestFile.toPath())
             ),
             levelFactory = { StandardLevel() }
         )
@@ -27,7 +28,7 @@ class SSTableManagerSpec : StringSpec({
         val entries = fillTree(tree)
         val tables = manifest.level(0)
             .sortedBy { it.id }
-        val tableEntries = concat(tables)
+        val tableEntries = entries(tables.asSequence())
 
         // The table entries have been merged and sorted, so we must do the same
         val mergedEntries = TreeMap<String, Record>()
@@ -37,6 +38,8 @@ class SSTableManagerSpec : StringSpec({
             it.second shouldBe mergedEntries[it.first]
         }
 
+        tree.close()
+
         (manifest.level(0).size()) shouldBe 0
     }
 })
@@ -45,11 +48,24 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
     val walDir = createTempDir()
     val sstableDir = createTempDir()
 
+    val tableController = StandardSSTableController(
+        sstableDir,
+        Config.sstablePrefix,
+        Config.maxSstableSize
+    )
+    val compactor = StandardCompactor(
+        manifestManager.levels(),
+        { maxLevelSize(it) },
+        { StandardLevel() },
+        tableController
+    )
     val tableManager = StandardSSTableManager(
         sstableDir,
         manifestManager,
         BinarySSTableReader(sstableDir),
-        Config
+        Config,
+        tableController,
+        compactor
     )
 
     return StandardLogStructuredMergeTree(
@@ -71,10 +87,10 @@ fun fillTree(tree: LogStructuredMergeTree): List<Entry> {
     val random = Random(0)
     val entries = mutableListOf<Entry>()
 
-    for (i in 0..10000) {
+    for (i in 0..100_000) {
         val key = "key$i"
         val value = TreeMap<String, Any>()
-        val randomBytes = ByteArray(BinaryWriteAheadLogWriter.BLOCK_SIZE * random.nextInt(3) + 25)
+        val randomBytes = ByteArray(random.nextInt(200) + 25)
         random.nextBytes(randomBytes)
         value["key0"] = 1
         value["key1"] = 10F

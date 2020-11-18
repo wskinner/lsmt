@@ -1,9 +1,6 @@
 package table
 
-import core.KeyRange
-import core.Level
-import core.LevelIndex
-import core.emptyLevel
+import core.*
 import log.BinaryWriteAheadLogReader
 import log.WriteAheadLogWriter
 import table.StandardManifestManager.Companion.add
@@ -87,7 +84,7 @@ class StandardManifestManager(
 
     override fun levels(): LevelIndex = allTables
 
-    override fun addTable(table: SSTableMetadata) {
+    override fun addTable(table: SSTableMetadata): Unit = synchronized(this) {
         writer.addTable(table)
 
         if (!allTables.containsKey(table.level)) {
@@ -97,7 +94,7 @@ class StandardManifestManager(
         allTables[table.level]?.add(table)
     }
 
-    override fun removeTable(table: SSTableMetadata) {
+    override fun removeTable(table: SSTableMetadata): Unit = synchronized(this) {
         allTables[table.level]?.remove(table)
     }
 
@@ -108,7 +105,7 @@ class StandardManifestManager(
 }
 
 class BinaryManifestReader(
-    private val logReader: BinaryWriteAheadLogReader
+    private val logReader: BinaryWriteAheadLogReader<Entry>
 ) : ManifestReader {
     override fun read(): LevelIndex {
         val result = TreeMap<Int, Level>()

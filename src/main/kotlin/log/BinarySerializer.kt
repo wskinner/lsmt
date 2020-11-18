@@ -8,6 +8,7 @@ import toInt
 import toLong
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.lang.Integer.min
 import java.util.*
 
 /**
@@ -76,6 +77,7 @@ fun InputStream.decode(): Pair<String, Record> {
     return key to map
 }
 
+// TODO optimize the format so that only string values include a valueLength field. Saves 4 bytes per non-string
 fun InputStream.readMapRecord(): Pair<String, Any> {
     val keyLength = readNBytes(4).toInt()
     val type = read()
@@ -122,6 +124,44 @@ class ArraysInputStream(private val arrays: List<ByteArray>) : InputStream() {
         }
         bytesRead++
         return byte.toInt()
+    }
+
+    override fun readNBytes(len: Int): ByteArray {
+        val result = ByteArray(len)
+        var resultOffset = 0
+        var remaining = len
+        while (remaining > 0 && available() > 0) {
+            val amount = min(remaining, arrays[listIndex].size - arrayIndex)
+            arrays[listIndex].copyInto(
+                result,
+                destinationOffset = resultOffset,
+                startIndex = arrayIndex,
+                endIndex = arrayIndex + amount
+            )
+            arrayIndex += amount
+            bytesRead += amount
+            remaining -= amount
+            resultOffset += amount
+            if (arrayIndex >= arrays[listIndex].size) {
+                listIndex++
+                arrayIndex = 0
+            }
+        }
+
+        return result
+    }
+
+    override fun readAllBytes(): ByteArray {
+        val result = ByteArray(totalBytes)
+        var start = 0
+        for (arr in arrays) {
+            arr.copyInto(result, destinationOffset = start)
+            start += arr.size
+        }
+
+        bytesRead = totalBytes
+
+        return result
     }
 
     override fun available(): Int {

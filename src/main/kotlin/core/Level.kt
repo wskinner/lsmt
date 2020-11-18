@@ -1,5 +1,6 @@
 package core
 
+import overlaps
 import table.SSTableMetadata
 import table.TableKey
 import java.util.*
@@ -20,6 +21,11 @@ interface Level : Iterable<SSTableMetadata> {
      * This operation should be backed by an interval tree and run in O(log n) TODO.
      */
     fun get(key: String): List<SSTableMetadata>
+
+    /**
+     * Return all tables whose keys overlap the range.
+     */
+    fun getRange(key: KeyRange): List<SSTableMetadata>
 
     /**
      * Return the next candidate that should be merged into the next level. LevelDB proceeds round-robin through the key
@@ -43,6 +49,11 @@ interface Level : Iterable<SSTableMetadata> {
      * level invariant for levels greater than 0, so in the usual case this should be followed by rebalancing.
      */
     fun addAll(otherLevel: Level)
+
+    /**
+     * Remove all tables in this level.
+     */
+    fun clear()
 }
 
 /**
@@ -62,6 +73,8 @@ class StandardLevel(
 
     override fun get(key: String): List<SSTableMetadata> = map.values.filter { it.keyRange.contains(key) }
 
+    override fun getRange(key: KeyRange): List<SSTableMetadata> = map.values.filter { it.keyRange overlaps key }
+
     override fun nextCompactionCandidate(): SSTableMetadata {
         TODO("Not yet implemented")
     }
@@ -73,6 +86,8 @@ class StandardLevel(
     override fun addAll(otherLevel: Level) {
         otherLevel.forEach { map[it.key] = it }
     }
+
+    override fun clear() = map.clear()
 
     override fun iterator(): Iterator<SSTableMetadata> = map.values.iterator()
 
