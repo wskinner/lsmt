@@ -26,4 +26,8 @@ class TableKeyComparator : Comparator<TableKey> {
 
         return strCmp
     }
+
+    companion object {
+        val instance = TableKeyComparator()
+    }
 }

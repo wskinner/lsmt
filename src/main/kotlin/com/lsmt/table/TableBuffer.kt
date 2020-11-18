@@ -2,13 +2,16 @@ package com.lsmt.table
 
 import com.lsmt.core.*
 import com.lsmt.log.BinaryLogWriter
+import com.lsmt.log.BinaryLogWriter.Companion.FIRST
 import com.lsmt.log.BinaryLogWriter.Companion.FULL
 import com.lsmt.log.BinaryLogWriter.Companion.LAST
+import com.lsmt.log.DELETE_MASK
 import com.lsmt.log.Header
+import com.lsmt.readInt
+import com.lsmt.readString
 import com.lsmt.toInt
 import mu.KotlinLogging
 import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.CRC32C
@@ -20,8 +23,6 @@ interface TableBuffer {
 
     fun limit(): Int
 
-    fun readEntry(): Entry
-
     fun iterator(): Iterator<Entry>
 }
 
@@ -31,6 +32,7 @@ class StandardTableBuffer(
 ) : TableBuffer {
 
     private val blockIndex = readBlockIndex()
+    private val dataLimit = dataLength()
 
     init {
         delegate.order(ByteOrder.LITTLE_ENDIAN)
@@ -46,12 +48,6 @@ class StandardTableBuffer(
         } else {
             getInBlock(key, closestBlock)
         }
-    }
-
-    fun nextKey(): Pair<Header, Key> {
-        val header = readHeader()
-        val key = readKey()
-        return header to key
     }
 
     /**
@@ -89,80 +85,42 @@ class StandardTableBuffer(
         return result
     }
 
-    private fun readKey(): Key {
-        val size = readInt()
-        val keyLength = size and Int.MAX_VALUE
-        val value = readNBytes(keyLength)
-        return Key(size, value)
-    }
-
-    private fun readFirstValue(header: Header, key: Key): ByteArray {
-        val result = readNBytes(header.length - 4 - key.keyLength)
-
-        val check = crc.checksum(
-            type = header.type,
-            size = key.size,
-            key = key.value,
-            value = result
-        )
-        if (check != header.crc) {
-            logger.error("Corrupt record file=${table.path}")
-        }
-        return result
-    }
-
-    private fun readValue(header: Header): ByteArray {
-        val result = readNBytes(header.length)
-        val check = crc.checksum(header.type, result)
-        if (check != header.crc) {
-            logger.error("Corrupt record file=${table.path}")
-        }
-        return result
-    }
-
     /**
-     * Before calling this function, the header and key have been read. This function skips the value associated with
-     * the header that was read. After calling this function, the buffer's position is equal to the first byte of the
-     * next header.
+     * Increment the position in the buffer until the value of position() is the first data byte of a FIRST or FULL
+     * record, or is equal to dataLimit.
      */
-    private fun skipRecord(firstHeader: Header, firstKey: Key) {
-        if (firstHeader.type == FULL) {
-            val bytesToSkip = firstHeader.length - 4 - firstKey.keyLength
-            delegate.position(position() + bytesToSkip)
-        } else {
-            val bytesToSkip = firstHeader.length - 4 - firstKey.keyLength
-            delegate.position(position() + bytesToSkip)
-            do {
-                val header = readHeader()
-                delegate.position(position() + header.length)
-            } while (header.type != LAST)
-        }
-    }
-
-    /**
-     * Before calling this function, the header and key have been read. Read and return the value, which may span
-     * multiple blocks.
-     */
-    private fun readRecord(firstHeader: Header, firstKey: Key): Record {
-        val firstData = readFirstValue(firstHeader, firstKey)
-
-        if (firstHeader.type == FULL) {
-            return firstData
-        }
-
-        val os = ByteArrayOutputStream()
-        os.write(firstData)
-
-        // It was a first record
-        do {
+    private fun seekToNextRecord(): Header? {
+        while (position() < dataLimit) {
             val header = readHeader()
-            val data = readValue(header)
-            os.write(data)
-        } while (header.type != LAST)
+            if (header.type == FIRST || header.type == FULL)
+                return header
 
-        return os.toByteArray()
+            delegate.position(position() + header.length)
+        }
+        return null
     }
 
+    /**
+     * Seek to the beginning of the next record and read its bytes
+     */
+    private fun readRecordBytes(): ByteArray? {
+        val baos = ByteArrayOutputStream()
+        var header = seekToNextRecord() ?: return null
+
+        while (true) {
+            val data = readNBytes(header.length)
+            val check = crc.checksum(header.type, data)
+            if (check != header.crc) {
+                logger.error("Corrupt record file=${table.path}")
+            }
+            baos.writeBytes(data)
+            readTrailer()
+            if (header.type == LAST || header.type == FULL)
+                return baos.toByteArray()
+            header = readHeader()
+        }
+
+    }
 
     private fun readIndexEntry(): Pair<String, BlockHandle> {
         val offset = readInt()
@@ -192,28 +150,26 @@ class StandardTableBuffer(
         return length
     }
 
-    override fun readEntry(): Entry {
-        val header = readHeader()
-        val key = readKey()
-        if (key.isDelete)
-            return key.key to null
-
-        val record = readRecord(header, key)
-        return key.key to record
-    }
-
     override fun iterator(): Iterator<Entry> = SSTableIterator(delegate, dataLength())
 
+    /**
+     * Search a block for the given key. If there is a record with this key in this block,  return the value. If there
+     * is no record, or the record is a delete, return null.
+     *
+     * TODO (will) optimize this a bit.
+     */
     private fun getInBlock(targetKey: String, block: BlockHandle): Record? {
         delegate.position(block.offset)
         while (delegate.position() < block.offset + block.length) {
-            val (header, key) = nextKey()
-            if (key.key == targetKey) {
-                if (key.isDelete)
+            val stream = (readRecordBytes() ?: return null).inputStream()
+            val size = stream.readInt()
+            val isDelete = size and DELETE_MASK < 0
+            val keySize = size and Integer.MAX_VALUE
+            val key = stream.readString(keySize)
+            if (key == targetKey) {
+                if (isDelete)
                     return null
-                return readRecord(header, key)
-            } else {
-                skipRecord(header, key)
+                return stream.readAllBytes()
             }
         }
 
@@ -229,23 +185,3 @@ class StandardTableBuffer(
     }
 }
 
-class ByteBufferInputStream(private val delegate: ByteBuffer) : InputStream() {
-    override fun read(): Int {
-        return delegate.get().toInt()
-    }
-
-    override fun readNBytes(len: Int): ByteArray {
-        val result = ByteArray(len)
-        delegate.get(result)
-        return result
-    }
-
-    override fun readAllBytes(): ByteArray {
-        val length = delegate.limit() - delegate.position()
-        return readNBytes(length)
-    }
-
-    override fun available(): Int {
-        return delegate.limit() - delegate.position()
-    }
-}

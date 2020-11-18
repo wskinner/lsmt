@@ -10,6 +10,7 @@ import com.lsmt.log.*
 import com.lsmt.treeFactory
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
+import io.mockk.mockk
 import java.util.*
 
 class SSTableManagerSpec : StringSpec({
@@ -56,6 +57,67 @@ class SSTableManagerSpec : StringSpec({
             reader.readAll(table).toList()
             val iter = reader.mmap(table).iterator()
             iter.asSequence().toList()
+        }
+    }
+
+    "merge tables" {
+        val sstableDir = createTempDir().apply { deleteOnExit() }
+        val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
+        val walFileGenerator = mockk<SynchronizedFileGenerator>()
+        val fileManager = createSSTableManager(sstableFileGenerator)
+
+        val tables = mutableListOf<SSTableMetadata>()
+        var totalEntries = 0
+        fileManager.use {
+            for ((key, value) in entrySeq()) {
+                totalEntries++
+                fileManager.append(key, value)
+                if (fileManager.totalBytes() > Config.maxSstableSize) {
+                    val handle = fileManager.rotate()
+                    tables.add(
+                        SSTableMetadata(
+                            sstableFileGenerator.path(handle.id).toString(),
+                            "",
+                            "",
+                            0,
+                            handle.id,
+                            handle.totalBytes
+                        )
+                    )
+                }
+            }
+            if (fileManager.totalBytes() > 0) {
+                val handle = fileManager.rotate()
+                tables.add(
+                    SSTableMetadata(
+                        sstableFileGenerator.path(handle.id).toString(),
+                        "",
+                        "",
+                        0,
+                        handle.id,
+                        handle.totalBytes
+                    )
+                )
+            }
+        }
+
+        val tableSum = tables
+            .map { BinarySSTableReader().readAll(it).size }
+            .sum()
+
+        tableSum shouldBe totalEntries
+
+        val cache = TableCache(
+            BinarySSTableReader(),
+            Config.maxCacheSizeMB,
+            sstableFileGenerator = sstableFileGenerator,
+            walFileGenerator = walFileGenerator
+        )
+
+        val mergedEntries = merge(tables, cache).toMap()
+        mergedEntries.size shouldBe totalEntries
+        for ((key, value) in entrySeq()) {
+            mergedEntries[key] shouldBe value
         }
     }
 

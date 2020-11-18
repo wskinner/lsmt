@@ -80,12 +80,13 @@ class StandardSSTableController(
         val targetLevel = level + 1
 
         val destTables = mutableSetOf<SSTableMetadata>()
-        mergeTask.sourceTables.forEach {
-            val overlap = manifest.level(targetLevel).getRange(it.keyRange)
+        val sourceTables = mutableListOf<SSTableMetadata>()
+        for (table in mergeTask.sourceTables) {
+            val overlap = manifest.level(targetLevel).getRange(table.keyRange)
             if (overlap.isEmpty()) {
-                // Tables that don't overlap with any table in the destination level can be moved to that level.
-                moveTableUp(it)
+                moveTableUp(table)
             } else {
+                sourceTables.add(table)
                 destTables.addAll(overlap)
             }
         }
@@ -95,7 +96,7 @@ class StandardSSTableController(
             return
         }
 
-        val ids = mergeTask.sourceTables.map { it.id }
+        val ids = sourceTables.map { it.id }
         logMergeTask(ids, targetLevel, compactionId, "started")
 
         val fileManager = try {
@@ -105,7 +106,7 @@ class StandardSSTableController(
             return
         }
         try {
-            val seq = merge(destTables.toList() + mergeTask.sourceTables)
+            val seq = merge(destTables.toList() + sourceTables)
 
             var minKey: String? = null
             var maxKey: String? = null
@@ -138,7 +139,7 @@ class StandardSSTableController(
                 addEntry(entry.first, entry.second)
             }
 
-            for (table in mergeTask.sourceTables) {
+            for (table in sourceTables) {
                 manifest.removeTable(table)
             }
 
@@ -249,19 +250,21 @@ class StandardSSTableController(
  */
 fun merge(tables: List<SSTableMetadata>, tableCache: TableCache): Sequence<Entry> = sequence {
     val priorityQueue = PriorityQueue<TableEntry>()
-    val iterators = tables.sortedBy { it.id }
-        .map { tableCache.read(it).iterator() }
-        .toTypedArray()
-    for (i in iterators.indices)
-        priorityQueue.add(TableEntry(iterators[i].next(), i))
+    val iterators = tables
+        .map { it.id to tableCache.read(it).iterator() }
+        .toMap()
+    for ((i, iter) in iterators)
+        priorityQueue.add(TableEntry(iter.next(), i))
 
     var buffer = priorityQueue.poll()
-    while (priorityQueue.isNotEmpty()) {
-        if (iterators[buffer.tableId].hasNext()) {
-            priorityQueue.add(TableEntry(iterators[buffer.tableId].next(), buffer.tableId))
-        }
+    if (iterators.getValue(buffer.tableId).hasNext())
+        priorityQueue.add(TableEntry(iterators.getValue(buffer.tableId).next(), buffer.tableId))
 
+    while (priorityQueue.isNotEmpty()) {
         val next = priorityQueue.poll()
+        if (iterators.getValue(next.tableId).hasNext())
+            priorityQueue.add(TableEntry(iterators.getValue(next.tableId).next(), next.tableId))
+
         buffer = if (next.entry.first == buffer.entry.first) {
             // An entry from a younger table has the same key. This is either an overwrite or a deletion.
             next
