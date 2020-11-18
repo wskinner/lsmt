@@ -1,7 +1,7 @@
-package core
+package com.lsmt.core
 
-import table.SSTableMetadata
-import toSequence
+import com.lsmt.table.SSTableMetadata
+import com.lsmt.toSequence
 import java.io.File
 import java.nio.file.Path
 import kotlin.math.pow

@@ -1,13 +1,15 @@
-package table
+package com.lsmt.table
 
-import Config
-import core.Compactor
-import core.Record
-import core.makeFile
-import log.createLogReader
+import com.lsmt.Config
+import com.lsmt.cached
+import com.lsmt.core.Compactor
+import com.lsmt.core.Record
+import com.lsmt.core.makeFile
+import com.lsmt.log.createLogReader
 import mu.KotlinLogging
 import java.io.File
 import java.nio.file.Path
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -40,6 +42,8 @@ interface SSTableManager : AutoCloseable {
  */
 interface SSTableReader {
     fun read(table: SSTableMetadata, key: String): Record?
+
+    fun readAll(table: SSTableMetadata): SortedMap<String, Record?>
 }
 
 /**
@@ -53,11 +57,13 @@ class StandardSSTableManager(
     // Directory where the SSTable files will be stored
     rootDirectory: File,
     private val manifest: ManifestManager,
-    private val tableReader: SSTableReader,
+    tableReader: SSTableReader,
     private val config: Config,
     private val tableController: SSTableController,
     compactor: Compactor
 ) : SSTableManager {
+
+    private val cachedTableReader = tableReader.cached()
 
     // This pool is responsible for making new SSTable files from log files. This task is parallelizable with no
     // contention. Because it is IO bound, it is safe to create many threads here.
@@ -108,15 +114,17 @@ class StandardSSTableManager(
 
     override fun close() {
         logger.info("Shutting down SSTableManager")
-        logger.info("Shutting down compaction pool")
-        compactionPool.shutdown()
-        compactionPool.awaitTermination(1, TimeUnit.MINUTES)
-        logger.info("Compaction pool termination complete")
 
         logger.info("Awaiting thread pool termination")
         tableCreationPool.shutdown()
         tableCreationPool.awaitTermination(1, TimeUnit.MINUTES)
         logger.info("Thread pool termination complete")
+
+        logger.info("Shutting down compaction pool")
+        Thread.sleep(1000)
+        compactionPool.shutdown()
+        compactionPool.awaitTermination(1, TimeUnit.MINUTES)
+        logger.info("Compaction pool termination complete")
 
         manifest.close()
         logger.info("Done shutting down SSTableManager")
@@ -129,7 +137,7 @@ class StandardSSTableManager(
     private fun getYoung(key: String): Record? =
         manifest.level(0)
             .get(key)
-            .map { it.id to tableReader.read(it, key) }
+            .map { it.id to cachedTableReader.read(it, key) }
             .maxBy { it.first }
             ?.second
 
@@ -151,7 +159,7 @@ class StandardSSTableManager(
                 // For levels except the young level, there must be at most one table whose range includes each key.
                 val table = it.get(key).firstOrNull()
                 if (table != null) {
-                    return tableReader.read(table, key)
+                    return cachedTableReader.read(table, key)
                 }
             }
 
@@ -183,4 +191,15 @@ class BinarySSTableReader(
             ?.second
     }
 
+    override fun readAll(table: SSTableMetadata): SortedMap<String, Record?> {
+        val file = makeFile(rootDirectory, prefix, table.id)
+        val reader = createLogReader(file)
+        val entries = reader.read()
+        val result = TreeMap<String, Record?>()
+        for (entry in entries) {
+            result[entry.first] = entry.second
+        }
+
+        return result
+    }
 }

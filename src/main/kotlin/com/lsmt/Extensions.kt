@@ -1,7 +1,11 @@
-import core.*
-import log.CountingInputStream
-import log.createLogReader
-import table.SSTableMetadata
+package com.lsmt
+
+import Bytes
+import com.lsmt.core.*
+import com.lsmt.log.CountingInputStream
+import com.lsmt.table.CachedSSTableReader
+import com.lsmt.table.SSTableMetadata
+import com.lsmt.table.SSTableReader
 import java.io.InputStream
 import java.nio.file.Paths
 import java.util.*
@@ -19,7 +23,7 @@ fun ByteArray.toDouble(): Double = Bytes.bytesToDouble(this)
 fun InputStream.counting() = CountingInputStream(this)
 
 fun Record.toSSTableMetadata(): SSTableMetadata? {
-    return SSTableMetadata(
+    return com.lsmt.table.SSTableMetadata(
         (this["path"] ?: return null) as String,
         (this["minKey"] ?: return null) as String,
         (this["maxKey"] ?: return null) as String,
@@ -34,7 +38,7 @@ infix fun KeyRange.overlaps(other: KeyRange): Boolean = other.contains(start) ||
 fun KeyRange.merge(other: KeyRange): KeyRange = KeyRange(min(start, other.start), max(endInclusive, other.endInclusive))
 
 fun SSTableMetadata.toSequence(): Sequence<Entry> = sequence {
-    val reader = createLogReader(Paths.get(path))
+    val reader = com.lsmt.log.createLogReader(Paths.get(path))
     yieldAll(reader.read())
 }
 
@@ -60,3 +64,5 @@ fun Sequence<Entry>.merge(): SortedMap<String, Record> {
 }
 
 fun Iterable<Entry>.merge(): SortedMap<String, Record> = asSequence().merge()
+
+fun SSTableReader.cached(): SSTableReader = CachedSSTableReader(this)

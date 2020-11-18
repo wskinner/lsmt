@@ -1,11 +1,11 @@
-package log
+package com.lsmt.log
 
-import core.Record
-import toByteArray
-import toDouble
-import toFloat
-import toInt
-import toLong
+import com.lsmt.core.Record
+import com.lsmt.toByteArray
+import com.lsmt.toDouble
+import com.lsmt.toFloat
+import com.lsmt.toInt
+import com.lsmt.toLong
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.lang.Integer.min

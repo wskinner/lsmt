@@ -1,4 +1,4 @@
-package core
+package com.lsmt.core
 
 import java.nio.file.Path
 import java.util.*

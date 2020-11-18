@@ -1,16 +1,14 @@
-package log
+package com.lsmt.log
 
-import Config
-import core.Entry
-import core.Record
-import counting
-import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
-import log.BinaryWriteAheadLogWriter.Companion.FULL
-import log.BinaryWriteAheadLogWriter.Companion.LAST
+import com.lsmt.core.Entry
+import com.lsmt.core.Record
+import com.lsmt.counting
+import com.lsmt.log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
+import com.lsmt.log.BinaryWriteAheadLogWriter.Companion.FULL
+import com.lsmt.log.BinaryWriteAheadLogWriter.Companion.LAST
+import com.lsmt.toByteArray
+import com.lsmt.toInt
 import mu.KotlinLogging
-import toByteArray
-import toInt
-import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Files
@@ -53,9 +51,7 @@ data class Header(val crc: Int, val length: Int, val type: Int)
  * data: uint8[length]
  */
 class BinaryWriteAheadLogManager(
-    private val rootDirectory: File,
-    private val filePrefix: String = Config.walPrefix,
-    private val fileGenerator: FileGenerator = SynchronizedFileGenerator(rootDirectory, filePrefix)
+    private val fileGenerator: FileGenerator
 ) : WriteAheadLogManager {
     var id: Int
         private set

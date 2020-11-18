@@ -1,4 +1,4 @@
-package table
+package com.lsmt.table
 
 class TableKey(val minKey: String, val id: Int) : Comparable<TableKey> {
     override fun compareTo(other: TableKey): Int {

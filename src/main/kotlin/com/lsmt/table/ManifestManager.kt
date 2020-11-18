@@ -1,12 +1,12 @@
-package table
+package com.lsmt.table
 
-import core.*
-import log.BinaryWriteAheadLogReader
-import log.WriteAheadLogWriter
+import com.lsmt.core.*
+import com.lsmt.log.BinaryWriteAheadLogReader
+import com.lsmt.log.WriteAheadLogWriter
+import com.lsmt.table.StandardManifestManager.Companion.add
+import com.lsmt.table.StandardManifestManager.Companion.remove
+import com.lsmt.toSSTableMetadata
 import mu.KotlinLogging
-import table.StandardManifestManager.Companion.add
-import table.StandardManifestManager.Companion.remove
-import toSSTableMetadata
 import java.util.*
 
 /**
@@ -81,7 +81,7 @@ data class SSTableMetadata(
 class StandardManifestManager(
     private val writer: ManifestWriter,
     reader: ManifestReader,
-    private val levelFactory: () -> Level
+    private val levelFactory: (Int) -> Level
 ) : ManifestManager {
     private val allTables: LevelIndex = reader.read()
 
@@ -89,18 +89,18 @@ class StandardManifestManager(
 
     override fun getOrPut(index: Int): Level = synchronized(this) {
         if (!allTables.containsKey(index)) {
-            allTables[index] = levelFactory()
+            allTables[index] = levelFactory(index)
         }
         return level(index)
     }
 
-    override fun addTable(table: SSTableMetadata): Unit {
-        logger.info { "addTable() level=${table.level} id=${table.id}"}
+    override fun addTable(table: SSTableMetadata) {
+        logger.info { "addTable() level=${table.level} id=${table.id}" }
         writer.addTable(table)
 
         synchronized(this) {
             if (!allTables.containsKey(table.level)) {
-                allTables[table.level] = levelFactory()
+                allTables[table.level] = levelFactory(table.level)
             }
 
             allTables[table.level]?.add(table)
@@ -108,7 +108,7 @@ class StandardManifestManager(
     }
 
     override fun removeTable(table: SSTableMetadata): Unit = synchronized(this) {
-        logger.info { "removeTable() level=${table.level} id=${table.id}"}
+        logger.info { "removeTable() level=${table.level} id=${table.id}" }
         try {
             allTables[table.level]?.remove(table)
         } catch (t: Throwable) {

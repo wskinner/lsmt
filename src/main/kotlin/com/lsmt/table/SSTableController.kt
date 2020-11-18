@@ -1,14 +1,12 @@
-package table
+package com.lsmt.table
 
-import core.Record
-import core.entries
-import log.BinaryWriteAheadLogManager
-import log.FileGenerator
-import log.SynchronizedFileGenerator
-import log.createLogReader
-import merge
+import com.lsmt.core.Record
+import com.lsmt.core.entries
+import com.lsmt.log.BinaryWriteAheadLogManager
+import com.lsmt.log.FileGenerator
+import com.lsmt.log.createLogReader
+import com.lsmt.merge
 import mu.KotlinLogging
-import java.io.File
 import java.nio.file.Path
 
 interface SSTableController {
@@ -25,11 +23,9 @@ interface SSTableController {
 }
 
 class StandardSSTableController(
-    private val rootDirectory: File,
-    private val tablePrefix: String,
     private val maxTableSize: Int,
     private val manifest: ManifestManager,
-    private val fileGenerator: FileGenerator = SynchronizedFileGenerator(rootDirectory, tablePrefix)
+    private val fileGenerator: FileGenerator
 ) : SSTableController {
 
     /**
@@ -46,25 +42,31 @@ class StandardSSTableController(
         val sourceTables = if (level == 0) {
             manifest.level(level).asList()
         } else {
-            listOf(manifest.level(level).nextCompactionCandidate())
+            val nextCompactionCandidate = manifest.level(level).nextCompactionCandidate()
+            if (nextCompactionCandidate != null)
+                listOf(nextCompactionCandidate)
+            else
+                emptyList()
         }
         val destinationTables = sourceTables
             .flatMap { manifest.level(targetLevel).getRange(it.keyRange) }
 
         val ids = sourceTables.map { it.id }
 
-        val fileManager = BinaryWriteAheadLogManager(rootDirectory, tablePrefix, fileGenerator)
+        val fileManager = BinaryWriteAheadLogManager(fileGenerator)
 
         logMergeTask(ids, targetLevel, "started")
         try {
             val seq = entries(destinationTables + sourceTables)
                 .merge()
 
-
             var totalBytes = 0
             var minKey: String? = null
+            var maxKey: String? = null
 
             fun addEntry(key: String, value: Record) {
+                maxKey = key
+
                 if (minKey == null)
                     minKey = key
 
@@ -98,10 +100,23 @@ class StandardSSTableController(
                 manifest.removeTable(table)
             }
 
+            fileManager.close()
+            if (totalBytes > 0) {
+                manifest.addTable(
+                    SSTableMetadata(
+                        path = fileManager.filePath.toString(),
+                        minKey = minKey!!,
+                        maxKey = maxKey!!,
+                        level = targetLevel,
+                        id = fileManager.id,
+                        fileSize = totalBytes
+                    )
+                )
+            }
+
             logMergeTask(ids, targetLevel, "complete", System.nanoTime() - start)
         } catch (t: Throwable) {
             logMergeTask(ids, targetLevel, "failed", System.nanoTime() - start, t)
-        } finally {
             fileManager.close()
         }
     }
@@ -132,7 +147,7 @@ class StandardSSTableController(
     override fun addTableFromLog(logPath: Path): SSTableMetadata {
         // Read the wal file, merge and sort its contents, and write the result to the new table file.
 
-        BinaryWriteAheadLogManager(rootDirectory, tablePrefix, fileGenerator).use { writer ->
+        BinaryWriteAheadLogManager(fileGenerator).use { writer ->
             val data = try {
                 val data = createLogReader(logPath).read().merge()
                 data

@@ -1,3 +1,6 @@
+import com.lsmt.toByteArray
+import com.lsmt.toDouble
+import com.lsmt.toFloat
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
 

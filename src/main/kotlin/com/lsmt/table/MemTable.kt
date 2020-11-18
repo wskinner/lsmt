@@ -1,6 +1,6 @@
-package table
+package com.lsmt.table
 
-import core.Record
+import com.lsmt.core.Record
 import java.util.*
 
 interface MemTable : Iterable<MutableMap.MutableEntry<String, Record>> {

@@ -1,4 +1,4 @@
-package log
+package com.lsmt.log
 
 import java.io.InputStream
 

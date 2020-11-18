@@ -1,18 +1,19 @@
 package log
 
+import com.lsmt.log.*
+import com.lsmt.log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
+import com.lsmt.merge
 import io.kotlintest.shouldBe
 import io.kotlintest.shouldNotBe
 import io.kotlintest.specs.StringSpec
-import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
-import merge
 import java.nio.file.Files
 import java.util.*
 
 class LogSpec : StringSpec({
 
     "log serialization and deserialization of a single full record" {
-        val file = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(file)
+        val dir = createTempDir().apply { deleteOnExit() }
+        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
         val key = "foobar"
         val value = TreeMap<String, Any>()
         wal.use {
@@ -35,8 +36,8 @@ class LogSpec : StringSpec({
     "log serialization and deserialization of a multi part record" {
         val random = Random(0)
 
-        val file = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(file)
+        val dir = createTempDir().apply { deleteOnExit() }
+        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
         val key = "foobar"
         val value = TreeMap<String, Any>()
 
@@ -61,8 +62,8 @@ class LogSpec : StringSpec({
     }
 
     "log serialization and deserialization of an empty record" {
-        val file = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(file)
+        val dir = createTempDir().apply { deleteOnExit() }
+        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
         val key = "foobar"
         val value = TreeMap<String, Any>()
         wal.use {
@@ -77,8 +78,8 @@ class LogSpec : StringSpec({
     "log serialization and deserialization of several records" {
         val random = Random(0)
 
-        val file = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(file)
+        val dir = createTempDir().apply { deleteOnExit() }
+        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
 
         val entries = (0..100).map {
             val key = "key$it"

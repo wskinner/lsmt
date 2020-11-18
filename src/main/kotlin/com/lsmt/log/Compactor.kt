@@ -1,8 +1,9 @@
-package log
+package com.lsmt.log
 
-import core.Compactor
-import table.ManifestManager
-import table.SSTableController
+import com.lsmt.core.Compactor
+import com.lsmt.table.ManifestManager
+import com.lsmt.table.SSTableController
+import mu.KotlinLogging
 
 /**
  * log.Compactor that implements the LevelDB compaction strategy, which is described at
@@ -13,7 +14,7 @@ import table.SSTableController
  * levels.
  *
  * When the size of level L exceeds its limit, we compact it in a background thread. The compaction picks a file from
- * level L and all overlapping files from the next level L+1. Note that if a level-L file overlaps only part of a
+ * level L and all overlapping files from the next level L+1. Note that if a level-L file com.lsmt.overlaps only part of a
  * level-(L+1) file, the entire file at level-(L+1) is used as an input to the compaction and will be discarded after
  * the compaction.
  *
@@ -30,6 +31,7 @@ class StandardCompactor(
 ) : Compactor {
 
     override fun run() {
+        logger.info("Running compactor")
         for ((index, level) in manifest.levels().filterNot { it.key == 0 }) {
             if (level.size() > levelSizeLimit(index)) {
                 doCompaction(index)
@@ -41,10 +43,22 @@ class StandardCompactor(
      * Compact level i  into level i + 1. Level i is guaranteed to exist, but level i + 1 may not.
      */
     private fun doCompaction(levelI: Int) = synchronized(manifest) {
-        val l1 = manifest.level(levelI)
+        try {
+            val l1 = manifest.level(levelI)
+            val sizeLimit = levelSizeLimit(levelI)
 
-        while (l1.size() > levelSizeLimit(levelI)) {
-            ssTableController.merge(levelI)
+            while (l1.size() > sizeLimit) {
+                logger.info("Compacting level=$levelI size=${l1.size()} sizeLimit=$sizeLimit")
+                ssTableController.merge(levelI)
+            }
+
+            logger.info("Compaction done. level=$levelI size=${l1.size()} sizeLimit=$sizeLimit")
+        } catch (t: Throwable) {
+            logger.error(t) { "Error in doCompaction()" }
         }
+    }
+
+    companion object {
+        val logger = KotlinLogging.logger {}
     }
 }

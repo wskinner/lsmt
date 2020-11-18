@@ -1,15 +1,13 @@
 package table
 
-import Config
-import log.StandardCompactor
-import core.*
+import com.lsmt.Config
+import com.lsmt.core.*
+import com.lsmt.log.*
+import com.lsmt.merge
+import com.lsmt.table.*
+import com.lsmt.treeFactory
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
-import log.BinaryWriteAheadLogManager
-import log.BinaryWriteAheadLogWriter
-import log.createLogReader
-import merge
-import treeFactory
 import java.util.*
 
 class SSTableManagerSpec : StringSpec({
@@ -23,7 +21,7 @@ class SSTableManagerSpec : StringSpec({
             BinaryManifestReader(
                 createLogReader(manifestFile.toPath())
             ),
-            levelFactory = { StandardLevel() }
+            levelFactory = { StandardLevel(it) }
         )
         val tree = tree(manifest)
         val entries = fillTree(tree)
@@ -67,11 +65,11 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
     val walDir = createTempDir().apply { deleteOnExit() }
     val sstableDir = createTempDir().apply { deleteOnExit() }
 
+
     val tableController = StandardSSTableController(
-        sstableDir,
-        Config.sstablePrefix,
         Config.maxSstableSize,
-        manifestManager
+        manifestManager,
+        SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
     )
     val compactor = StandardCompactor(
         manifestManager,
@@ -95,8 +93,7 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
         },
         tableManager,
         BinaryWriteAheadLogManager(
-            walDir,
-            Config.walPrefix
+            SynchronizedFileGenerator(walDir, Config.walPrefix)
         ),
         Config
     ).apply { start() }

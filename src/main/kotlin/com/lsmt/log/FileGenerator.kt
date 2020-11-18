@@ -1,8 +1,8 @@
-package log
+package com.lsmt.log
 
-import core.NumberedFile
-import core.makeFile
-import core.nextFile
+import com.lsmt.core.NumberedFile
+import com.lsmt.core.makeFile
+import com.lsmt.core.nextFile
 import java.io.File
 
 /**

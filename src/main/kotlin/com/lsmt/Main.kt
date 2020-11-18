@@ -1,11 +1,13 @@
-import core.LogStructuredMergeTree
-import core.StandardLevel
-import core.StandardLogStructuredMergeTree
-import core.maxLevelSize
-import log.*
+package com.lsmt
+
+import com.lsmt.core.LogStructuredMergeTree
+import com.lsmt.core.StandardLevel
+import com.lsmt.core.StandardLogStructuredMergeTree
+import com.lsmt.core.maxLevelSize
+import com.lsmt.log.*
+import com.lsmt.table.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import table.*
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -102,12 +104,10 @@ fun treeFactory(): StandardLogStructuredMergeTree {
         BinaryManifestReader(
             createLogReader(manifestFile.toPath())
         ),
-        levelFactory = { StandardLevel() }
+        levelFactory = { StandardLevel(it) }
     )
 
     val tableController = StandardSSTableController(
-        sstableDir,
-        config.sstablePrefix,
         config.maxSstableSize,
         manifestManager,
         SynchronizedFileGenerator(sstableDir, config.sstablePrefix)
@@ -124,7 +124,7 @@ fun treeFactory(): StandardLogStructuredMergeTree {
             manifestManager,
             BinarySSTableReader(
                 sstableDir,
-                Config.sstablePrefix
+                config.sstablePrefix
             ),
             config,
             tableController,
@@ -135,11 +135,9 @@ fun treeFactory(): StandardLogStructuredMergeTree {
             )
         ),
         BinaryWriteAheadLogManager(
-            walDir,
-            Config.walPrefix,
-            SynchronizedFileGenerator(walDir, Config.walPrefix)
+            SynchronizedFileGenerator(walDir, config.walPrefix)
         ),
-        Config
+        config
     ).apply { start() }
 }
 

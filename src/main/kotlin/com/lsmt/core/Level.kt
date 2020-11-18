@@ -1,8 +1,9 @@
-package core
+package com.lsmt.core
 
-import overlaps
-import table.SSTableMetadata
-import table.TableKey
+import com.lsmt.overlaps
+import com.lsmt.table.SSTableMetadata
+import com.lsmt.table.TableKey
+import mu.KotlinLogging
 import java.util.*
 
 interface Level : Iterable<SSTableMetadata> {
@@ -32,7 +33,7 @@ interface Level : Iterable<SSTableMetadata> {
      * range.
      * https://github.com/google/leveldb/blob/master/doc/impl.md#compactions
      */
-    fun nextCompactionCandidate(): SSTableMetadata
+    fun nextCompactionCandidate(): SSTableMetadata?
 
     /**
      * Return the number of tables in the level.
@@ -65,8 +66,11 @@ interface Level : Iterable<SSTableMetadata> {
  * Naive implementation of the level structure, backed by a SortedMap. The get operation runs in O(N).
  */
 class StandardLevel(
-    private val map: TreeMap<TableKey, SSTableMetadata> = TreeMap<TableKey, SSTableMetadata>()
+    private val id: Int,
+    private val map: TreeMap<TableKey, SSTableMetadata> = TreeMap()
 ) : Level {
+
+    var lastCompaction: SSTableMetadata? = null
 
     override fun add(table: SSTableMetadata) {
         map[table.key] = table
@@ -76,17 +80,33 @@ class StandardLevel(
         map.remove(table.key)
     }
 
-    override fun get(key: String): List<SSTableMetadata> = map.values.filter { it.keyRange.contains(key) }
+    override fun get(key: String): List<SSTableMetadata> {
+        val candidates = map.values.filter { it.keyRange.contains(key) }
+        logger.debug { "StandardLevel.get() level=$id levelSize=${map.size} candidates=${candidates.size}" }
+        return candidates
+    }
 
     override fun getRange(key: KeyRange): List<SSTableMetadata> = map.values.filter { it.keyRange overlaps key }
 
-    override fun nextCompactionCandidate(): SSTableMetadata {
-        TODO("Not yet implemented")
+    override fun nextCompactionCandidate(): SSTableMetadata? = synchronized(this) {
+        lastCompaction = if (lastCompaction == null) {
+            map.firstEntry().value
+        } else {
+            map.higherEntry(lastCompaction?.key)?.value
+        }
+
+        // If it's still null at this point, we reached the maximum value in the map and should wrap back to the
+        // beginning.
+        if (lastCompaction == null) {
+            lastCompaction = map.firstEntry().value
+        }
+
+        return lastCompaction
     }
 
     override fun size(): Int = map.size
 
-    override fun copy(): Level = StandardLevel(TreeMap(map))
+    override fun copy(): Level = StandardLevel(id, TreeMap(map))
 
     override fun addAll(otherLevel: Level) {
         otherLevel.forEach { map[it.key] = it }
@@ -98,8 +118,11 @@ class StandardLevel(
 
     override fun iterator(): Iterator<SSTableMetadata> = map.values.iterator()
 
+    companion object {
+        val logger = KotlinLogging.logger {}
+    }
 }
 
-object EmptyLevel : Level by StandardLevel(TreeMap())
+object EmptyLevel : Level by StandardLevel(-1)
 
 fun emptyLevel(): Level = EmptyLevel
