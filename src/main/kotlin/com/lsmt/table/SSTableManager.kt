@@ -138,7 +138,7 @@ class StandardSSTableManager(
         manifest.level(0)
             .get(key)
             .map { it.id to tableController.read(it, key) }
-            .maxBy { it.first }
+            .maxByOrNull { it.first }
             ?.second
 
     /**
