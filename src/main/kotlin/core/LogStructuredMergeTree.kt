@@ -25,17 +25,16 @@ class StandardLogStructuredMergeTree(
 
     private var memTable = memTableFactory()
 
-    override fun put(key: String, value: Record) {
+    override fun put(key: String, value: Record) = synchronized(this) {
         writeAheadLog.append(key, value)
         memTable.put(key, value)
 
         var maxRange: KeyRange
         val toMerge = mutableListOf<SSTableMetadata>()
-        if (writeAheadLog.size() > config.maxWalSize)
-            synchronized(memTable) {
-                ssTable.addTableAsync(writeAheadLog.rotate())
-                memTable = memTableFactory()
-            }
+        if (writeAheadLog.size() > config.maxWalSize) {
+            ssTable.addTableAsync(writeAheadLog.rotate())
+            memTable = memTableFactory()
+        }
     }
 
     override fun get(key: String): Record? = memTable.get(key) ?: ssTable.get(key)

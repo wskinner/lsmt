@@ -1,12 +1,10 @@
 import core.LogStructuredMergeTree
 import core.StandardLogStructuredMergeTree
 import log.BinaryWriteAheadLogManager
-import table.StandardManifestManager
-import table.StandardMemTable
-import table.StandardSSTableManager
+import log.BinaryWriteAheadLogReader
+import log.BinaryWriteAheadLogWriter
+import table.*
 import java.io.File
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -33,6 +31,9 @@ fun test(times: Int, ops: Int, tree: LogStructuredMergeTree) {
 }
 
 fun main() {
+    val manifestFile = File("./build/manifest/manifest.log")
+    val sstableDir = File("./build/sstable")
+    val walDir = File("./build/log")
     val tree = StandardLogStructuredMergeTree(
         {
             StandardMemTable(
@@ -41,14 +42,25 @@ fun main() {
         },
         StandardSSTableManager(
             File("./build/sstables"),
-            StandardSerializer(),
             StandardManifestManager(
-                Path.of("./build/sstables/manifest.txt")
-            )
+                BinaryManifestWriter(
+                    BinaryWriteAheadLogWriter(manifestFile.outputStream())
+                ),
+                BinaryManifestReader(
+                    BinaryWriteAheadLogReader(manifestFile.toPath())
+                )
+            ),
+            BinarySSTableReader(
+                sstableDir,
+                Config.sstablePrefix
+            ),
+            Config
         ),
         BinaryWriteAheadLogManager(
-            Paths.get("./build/wal.bin")
-        )
+            walDir,
+            Config.walPrefix
+        ),
+        Config
     ).apply { start() }
 
     tree.use {

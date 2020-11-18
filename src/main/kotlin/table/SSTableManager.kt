@@ -2,7 +2,6 @@ package table
 
 import Config
 import core.Entry
-import core.KeyRange
 import core.Record
 import core.nextFile
 import log.BinaryWriteAheadLogReader
@@ -108,6 +107,8 @@ class StandardSSTableManager(
      * maintained: no two tables in the same level may have overlapping key ranges. Since SSTables are immutable,
      * any table merges that occur will result in the creation of new tables.
      *
+     * The tables are sorted by minKey, which means all overlapping tables will be adjacent in the list.
+     *
      * 1. Merge the levels, possibly resulting in some tables that are larger than the 2MB file limit.
      * 2. Ensure all tables are less than 2MB by splitting larger tables.
      */
@@ -116,21 +117,30 @@ class StandardSSTableManager(
         manifest.tables()[1]?.let { newLevel1.putAll(it) }
         val mergeGroups = mutableListOf<List<SSTableMetadata>>()
 
-
         var currentGroup = mutableListOf(newLevel1.firstEntry().value!!)
         var currentRange = currentGroup.last().keyRange
-        for (next in newLevel1.values.drop(1)) {
-            if (currentRange overlaps next.keyRange) {
-                currentGroup.add(next)
-                currentRange = currentRange.merge(next.keyRange)
-            } else {
-                if (currentGroup.isNotEmpty()) {
-                    mergeGroups.add(currentGroup)
-                    currentGroup = mutableListOf()
-                    currentRange = KeyRange("", "")
-                }
+
+        fun mergeGroup() {
+            if (currentGroup.isNotEmpty()) {
+                mergeGroups.add(currentGroup)
+                currentGroup = mutableListOf()
             }
         }
+
+        for (next in newLevel1.values.drop(1)) {
+            currentRange = if (!(currentRange overlaps next.keyRange)) {
+                // Make a new group and merge the current group together
+                mergeGroup()
+                next.keyRange
+            } else {
+                // Add next to the current group
+                currentRange.merge(next.keyRange)
+            }
+
+            currentGroup.add(next)
+        }
+
+        mergeGroup()
 
         for (group in mergeGroups) {
             for (table in group) {
@@ -184,6 +194,7 @@ class StandardSSTableManager(
                         fileSize = totalBytes
                     )
                 )
+                totalBytes = 0
                 currentWriter.close()
                 currentWriter = BinaryWriteAheadLogWriter(
                     currentFile.toFile()
@@ -280,7 +291,7 @@ private fun tableFile(rootDirectory: File, prefix: String, id: Int): Path =
 
 class BinarySSTableReader(
     private val rootDirectory: File,
-    private val prefix: String
+    private val prefix: String = Config.sstablePrefix
 ) : SSTableReader {
     override fun read(table: SSTableMetadata, key: String): Record? {
         val file = tableFile(rootDirectory, prefix, table.id)

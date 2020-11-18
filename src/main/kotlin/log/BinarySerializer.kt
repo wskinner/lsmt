@@ -94,6 +94,8 @@ fun InputStream.readMapRecord(): Pair<String, Any> {
     return key to value
 }
 
+// 99610137
+
 fun valueType(value: Any): Byte = when (value) {
     is String -> 1
     is Int -> 2

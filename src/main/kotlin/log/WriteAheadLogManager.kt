@@ -1,8 +1,8 @@
 package log
 
+import Config
 import core.Entry
 import core.Record
-import core.currentFile
 import core.nextFile
 import counting
 import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
@@ -14,15 +14,11 @@ import java.io.File
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.util.zip.CRC32C
 import kotlin.math.min
 
 interface WriteAheadLogManager : WriteAheadLogWriter {
-    // Return the size, in bytes, of the log file.
-    fun size(): Long
-
     // Start a new log file. Return the path of the old log file.
     fun rotate(): Path
 
@@ -34,6 +30,9 @@ interface WriteAheadLogWriter : AutoCloseable {
 
     // Append a record to the log. Return the number of bytes written.
     fun append(key: String, value: Record): Int
+
+    // Total number of bytes written to the file.
+    fun size(): Int
 }
 
 data class Header(val crc: Int, val length: Int, val type: Int)
@@ -51,10 +50,10 @@ data class Header(val crc: Int, val length: Int, val type: Int)
  */
 class BinaryWriteAheadLogManager(
     private val rootDirectory: File,
-    private val filePrefix: String = "wal_"
+    private val filePrefix: String = Config.walPrefix
 ) : WriteAheadLogManager {
-    private var writer: WriteAheadLogWriter = createWriter()
-    private var filePath = Paths.get("$filePrefix${currentFile(rootDirectory, filePrefix)}")
+    private var filePath: Path = nextPath()
+    private var writer: WriteAheadLogWriter = createWriter(filePath)
 
     /**
      * Not thread safe.
@@ -71,29 +70,25 @@ class BinaryWriteAheadLogManager(
 
     override fun append(key: String, value: Record): Int = writer.append(key, value)
 
-    override fun size(): Long {
-        return Files.size(filePath)
-    }
+    override fun size(): Int = writer.size()
 
     override fun rotate(): Path {
-        val nextIndex = nextFile(
-            filePath.parent.toFile(),
-            filePrefix
-        )
-        val newPath = Paths.get("$filePrefix$nextIndex")
-        filePath = newPath
+        val oldPath = filePath
         close()
-        Files.move(filePath, newPath)
-        writer = createWriter()
-        return newPath
+        filePath = nextPath()
+        writer = createWriter(filePath)
+        return oldPath
     }
 
     override fun read(): List<Entry> {
         return BinaryWriteAheadLogReader(filePath).read()
     }
 
-    private fun createWriter(): WriteAheadLogWriter {
-        val os = Files.newOutputStream(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+    private fun nextPath(): Path =
+        rootDirectory.toPath().resolve("$filePrefix${nextFile(rootDirectory, filePrefix)}")
+
+    private fun createWriter(path: Path): WriteAheadLogWriter {
+        val os = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
         return BinaryWriteAheadLogWriter(os)
     }
 }
@@ -150,6 +145,8 @@ class BinaryWriteAheadLogWriter(
         }
         return bytesWritten
     }
+
+    override fun size(): Int = totalBytes
 
     override fun close() {
         os.close()

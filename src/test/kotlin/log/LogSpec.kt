@@ -2,14 +2,14 @@ package log
 
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
+import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
 import java.util.*
 
 class LogSpec : StringSpec({
 
     "log serialization and deserialization of a single full record" {
-        val file = createTempFile()
-        val wal = BinaryWriteAheadLogManager(file.toPath())
-        wal.start()
+        val file = createTempDir()
+        val wal = BinaryWriteAheadLogManager(file)
         val key = "foobar"
         val value = TreeMap<String, Any>()
         wal.use {
@@ -31,13 +31,12 @@ class LogSpec : StringSpec({
     "log serialization and deserialization of a multi part record" {
         val random = Random(0)
 
-        val file = createTempFile()
-        val wal = BinaryWriteAheadLogManager(file.toPath())
-        wal.start()
+        val file = createTempDir()
+        val wal = BinaryWriteAheadLogManager(file)
         val key = "foobar"
         val value = TreeMap<String, Any>()
 
-        val randomBytes = ByteArray(BinaryWriteAheadLogManager.BLOCK_SIZE * 3 + 25)
+        val randomBytes = ByteArray(BLOCK_SIZE * 3 + 25)
         random.nextBytes(randomBytes)
         val value3 = Base64.getEncoder().encodeToString(randomBytes)
         wal.use {
@@ -57,9 +56,8 @@ class LogSpec : StringSpec({
     }
 
     "log serialization and deserialization of an empty record" {
-        val file = createTempFile()
-        val wal = BinaryWriteAheadLogManager(file.toPath())
-        wal.start()
+        val file = createTempDir()
+        val wal = BinaryWriteAheadLogManager(file)
         val key = "foobar"
         val value = TreeMap<String, Any>()
         wal.use {
@@ -76,15 +74,14 @@ class LogSpec : StringSpec({
     "log serialization and deserialization of several records" {
         val random = Random(0)
 
-        val file = createTempFile()
-        val wal = BinaryWriteAheadLogManager(file.toPath())
-        wal.start()
+        val file = createTempDir()
+        val wal = BinaryWriteAheadLogManager(file)
 
 
         val entries = (0..100).map {
             val key = "key$it"
             val value = TreeMap<String, Any>()
-            val randomBytes = ByteArray(BinaryWriteAheadLogManager.BLOCK_SIZE * random.nextInt(3) + 25)
+            val randomBytes = ByteArray(BLOCK_SIZE * random.nextInt(3) + 25)
             random.nextBytes(randomBytes)
             value["key0"] = 1
             value["key1"] = 10F
