@@ -3,6 +3,7 @@ package benchmarks
 import benchmarks.SequentialReads.Companion.keyRangeSize
 import com.lsmt.core.LogStructuredMergeTree
 import com.lsmt.core.Record
+import com.lsmt.table.StandardTableIterator
 import org.openjdk.jmh.annotations.*
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -37,6 +38,11 @@ open class SequentialReads {
         tree = treeFactory().apply { fillTree(keySeq()) }
         // Synchronize on the completion of compaction and SSTable creation.
         tree?.close()
+    }
+
+    @TearDown
+    fun metrics() {
+        println("totalSeekBytes=${StandardTableIterator.totalSeekBytes.get()} totalReads=${StandardTableIterator.totalReads.get()} averageSeekBytes = ${StandardTableIterator.totalSeekBytes.get().toDouble() / StandardTableIterator.totalReads.get()}")
     }
 
     @Benchmark

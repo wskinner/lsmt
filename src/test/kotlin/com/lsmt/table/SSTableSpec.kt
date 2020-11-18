@@ -5,6 +5,7 @@ import com.lsmt.log.BinaryLogManager
 import com.lsmt.log.SynchronizedFileGenerator
 import com.lsmt.log.createSSTableManager
 import io.kotlintest.shouldBe
+import io.kotlintest.shouldNotBe
 import io.kotlintest.specs.StringSpec
 import java.util.*
 
@@ -77,18 +78,45 @@ class SSTableSpec : StringSpec({
         }
     }
 
-    "read bad table file" {
-        val reader = BinarySSTableReader()
-        val tableMeta = SSTableMetadata(
-            "/var/folders/wc/9glj74tj60v3h1_c_8jjkb280000gn/T/sstable15918895584119590722.tmp/sstable_19",
-            "",
-            "",
-            0,
-            19,
-            4002982
-        )
-        val buffer = reader.mmap(tableMeta)
+    "table iterator" {
+        val random = Random(0)
+        val sstableDir = createTempDir().apply { deleteOnExit() }
+        val fileGenerator = SynchronizedFileGenerator(sstableDir, "sstable")
+        val logManager = createSSTableManager(fileGenerator)
+        val expected = TreeMap<String, Record>()
+        for (i in 0..1000) {
+            val data = ByteArray(100).apply {
+                random.nextBytes(this)
+            }
+            val key = "key$i"
+            expected[key] = data
+        }
 
-        buffer.get("foo") shouldBe null
+        logManager.use { writer ->
+            expected.forEach { writer.append(it.key, it.value) }
+        }
+
+        val logHandle = logManager.rotate()
+        val tableMeta = SSTableMetadata(
+            path = fileGenerator.path(logHandle.id).toString(),
+            minKey = expected.firstKey(),
+            maxKey = expected.lastKey(),
+            level = 0,
+            id = logHandle.id,
+            fileSize = logHandle.totalBytes
+        )
+
+        val table = BinarySSTableReader().mmap(tableMeta)
+        val iterator = table.iterator()
+        val expectedEntries = expected.iterator()
+        while (iterator.hasNext()) {
+            val exp = expectedEntries.next()
+            val cis = iterator.next()
+            val get = table.get(exp.key)
+
+            cis.first shouldBe exp.key
+            cis.second shouldBe exp.value
+            get shouldBe exp.value
+        }
     }
 })

@@ -18,15 +18,6 @@ import mu.KotlinLogging
  *
  */
 
-data class Key(
-    val size: Int,
-    val value: ByteArray
-) {
-    val key = value.decodeToString()
-    val isDelete = size < 0
-    val keyLength = size and Int.MAX_VALUE
-}
-
 interface SSTable : Iterable<Entry> {
     fun get(key: String): Record?
 }

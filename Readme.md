@@ -33,6 +33,27 @@ Benchmark                      Mode  Cnt       Score         Error       Units
 SequentialWrites.singleWrite  thrpt    2  246461.567                     ops/s
 SequentialReads.singleRead    thrpt   10  1280590.622 ± 2871877.502      ops/s
 ```
+
+### Synchronized - 1 reader thread at a time
+```text
+SequentialReads.singleRead  thrpt   10  32770.488 ± 7084.871  ops/s
+```
+
+### One reader per get()
+```text
+SequentialReads.singleRead  thrpt   10  96938.381 ± 18779.865  ops/s
+```
+
+### ThreadLocal reader
+```text
+SequentialReads.singleRead  thrpt   10  96898.472 ± 17878.384  ops/s
+```
+
+### ThreadLocal reader with improved key iteration
+```text
+SequentialReads.singleRead  thrpt   10  32924.280 ± 87581.672  ops/s
+```
+
 ## Running benchmarks
 Benchmarks can be run with
 ```bash

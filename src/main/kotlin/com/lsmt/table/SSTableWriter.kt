@@ -61,13 +61,7 @@ class SSTableWriter(out: OutputStream) : BinaryLogWriter(out) {
     private fun writeBlockIndex() {
         for ((blockId, minKey) in blockBounds) {
             val blockOffset = blockId * BLOCK_SIZE
-            val length = if ((blockId + 1) * BLOCK_SIZE > dataLength) {
-                dataLength % BLOCK_SIZE
-            } else {
-                BLOCK_SIZE
-            }
             writeBytes(blockOffset.toByteArray())
-            writeBytes(length.toByteArray())
             writeBytes(minKey.length.toByteArray())
             writeBytes(minKey.toByteArray())
         }

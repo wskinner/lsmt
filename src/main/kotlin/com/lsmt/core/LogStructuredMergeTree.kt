@@ -57,7 +57,7 @@ class StandardLogStructuredMergeTree(
         }
     }
 
-    override fun get(key: String): Record? = synchronized(this) {
+    override fun get(key: String): Record? {
         val result = memTable.get(key) ?: ssTable.get(key)
         val count = readCounter.incrementAndGet()
         if (count % 10_000_000 == 0L) {

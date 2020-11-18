@@ -33,15 +33,24 @@ class TableCache(
         }
 
         if (!cache.containsKey(table.id)) {
-            cacheMisses.incrementAndGet()
-            cache[table.id] = reader.mmap(table)
+            synchronized(cache) {
+                if (!cache.containsKey(table.id)) {
+                    cacheMisses.incrementAndGet()
+                    cache[table.id] = reader.mmap(table)
+                }
+            }
         }
         return cache[table.id]?.get(key)
     }
 
     fun read(table: SSTableMetadata): Sequence<Entry> = sequence {
         if (!cache.containsKey(table.id)) {
-            cache[table.id] = reader.mmap(table)
+            synchronized(cache) {
+                if (!cache.containsKey(table.id)) {
+                    cacheMisses.incrementAndGet()
+                    cache[table.id] = reader.mmap(table)
+                }
+            }
         }
 
         cache[table.id]?.forEach {
@@ -134,3 +143,4 @@ class LRUCache<K, V>(private val maxSize: Int) : LinkedHashMap<K, V>(
     override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean =
         size > maxSize
 }
+

@@ -131,6 +131,7 @@ class StandardSSTableManager(
     /**
      * Search the young level (level 0) for a key. Tables in the young level may have overlapping keys, so we need to
      * scan all the tables that might contain the most recent record.
+     *
      */
     private fun getYoung(key: String): Record? =
         manifest.level(0)

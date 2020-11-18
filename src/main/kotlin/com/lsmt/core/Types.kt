@@ -22,6 +22,5 @@ class TableEntry(val entry: Entry, val tableId: Long) : Comparable<TableEntry> {
 }
 
 data class BlockHandle(
-    val offset: Int,
-    val length: Int
+    val offset: Int
 )
