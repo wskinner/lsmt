@@ -27,6 +27,7 @@ gradle test
 JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling and tuning, but the system is architected with performance in mind. 
 
 ## Latest benchmark
+Benchmarks data is from my 2018 MacBook Pro with a 2.7 GHz Quad-Core Intel Core i7.
 ```text
 Benchmark                      Mode  Cnt       Score       Error  Units
 SequentialReads.singleRead    thrpt   10  195979.981 ± 55956.806  ops/s
@@ -43,3 +44,9 @@ The high level architecture and the binary log format were inspired by LevelDB. 
 
 # Why should I use this instead of ${other database}
 I built this because I wanted to learn how LSM trees work. You probably shouldn't use it for anything!
+
+## TODO
+- Add global bloom filter for faster `get()` on nonexistent keys.
+- Interval tree for index. Reads are currently bottlenecked by key range lookups.
+- Move memtable off heap. This should reduce GC pressure in write-heavy workloads.
+- Add more JMH benchmarks for different scenarios including random reads and writes.
