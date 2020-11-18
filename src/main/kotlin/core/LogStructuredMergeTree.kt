@@ -1,4 +1,9 @@
+package core
+
+import Config
 import log.BinaryWriteAheadLogManager
+import table.MemTable
+import table.SSTableManager
 
 interface LogStructuredMergeTree : AutoCloseable {
     fun start()
@@ -14,7 +19,7 @@ class StandardLogStructuredMergeTree(
     private val memTableFactory: () -> MemTable,
     private val ssTable: SSTableManager,
     private val writeAheadLog: BinaryWriteAheadLogManager,
-    private val maxMemtableSize: Int = 10000
+    private val config: Config
 ) : LogStructuredMergeTree {
 
     private var memTable = memTableFactory()
@@ -23,12 +28,11 @@ class StandardLogStructuredMergeTree(
         writeAheadLog.append(key, value)
         memTable.put(key, value)
 
-        if (memTable.size() > maxMemtableSize) {
+        if (writeAheadLog.size() > config.maxWalSize)
             synchronized(memTable) {
-                ssTable.addTableAsync(memTable)
+                ssTable.addTableAsync(writeAheadLog.rotate())
                 memTable = memTableFactory()
             }
-        }
     }
 
     override fun get(key: String): Record? = memTable.get(key) ?: ssTable.get(key)
@@ -44,9 +48,5 @@ class StandardLogStructuredMergeTree(
     override fun close() {
         writeAheadLog.close()
         ssTable.close()
-    }
-
-    companion object {
-        const val SEQUENCE = "SEQ_nlXo9jaJFBMTjkWyeg"
     }
 }

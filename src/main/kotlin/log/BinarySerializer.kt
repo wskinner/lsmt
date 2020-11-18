@@ -1,6 +1,6 @@
 package log
 
-import Record
+import core.Record
 import toByteArray
 import toDouble
 import toFloat
@@ -36,13 +36,13 @@ import java.util.*
  * key := uint8[key length]
  * value := uint8[value length]
  */
-fun encode(key: String, map: Record): ByteArray {
+fun encode(key: String, record: Record): ByteArray {
     val baos = ByteArrayOutputStream()
     var keyBytes = key.toByteArray()
     baos.write(keyBytes.size.toByteArray())
     baos.write(keyBytes)
 
-    map.forEach { entry ->
+    record.forEach { entry ->
         // First write the header, including placeholders
         keyBytes = entry.key.toByteArray()
         val valueBytes = when (val value = entry.value) {

@@ -1346,15 +1346,15 @@
 <text x="53.4" y="942.0">java/util/concurrent/Executors$Runnabl..</text>
 </g>
 <g>
-<title>StandardSSTableManager$addTableAsync$1.run (141 samples, 24.14%)</title><rect x="50.4" y="915.0" width="284.9" height="15" fill="#65f665" rx="2" ry="2"/>
-<text x="53.4" y="926.0">StandardSSTableManager$addTableAsync$1..</text>
+<title>table.StandardSSTableManager$addTableAsync$1.run (141 samples, 24.14%)</title><rect x="50.4" y="915.0" width="284.9" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="53.4" y="926.0">table.StandardSSTableManager$addTableAsync$1..</text>
 </g>
 <g>
-<title>StandardSSTableManager.addTable (141 samples, 24.14%)</title><rect x="50.4" y="899.0" width="284.9" height="15" fill="#59ea59" rx="2" ry="2"/>
-<text x="53.4" y="910.0">StandardSSTableManager.addTable</text>
+<title>table.StandardSSTableManager.addTable (141 samples, 24.14%)</title><rect x="50.4" y="899.0" width="284.9" height="15" fill="#59ea59" rx="2" ry="2"/>
+<text x="53.4" y="910.0">table.StandardSSTableManager.addTable</text>
 </g>
 <g>
-<title>StandardSSTableManager.nextTableFile (14 samples, 2.40%)</title><rect x="50.4" y="883.0" width="28.3" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<title>table.StandardSSTableManager.nextTableFile (14 samples, 2.40%)</title><rect x="50.4" y="883.0" width="28.3" height="15" fill="#5ced5c" rx="2" ry="2"/>
 <text x="53.4" y="894.0">St..</text>
 </g>
 <g>
@@ -1362,7 +1362,7 @@
 <text x="53.4" y="878.0">j..</text>
 </g>
 <g>
-<title>StandardSSTableManager$nextTableFile$1$1.accept (1 samples, 0.17%)</title><rect x="52.4" y="851.0" width="2.1" height="15" fill="#64f564" rx="2" ry="2"/>
+<title>table.StandardSSTableManager$nextTableFile$1$1.accept (1 samples, 0.17%)</title><rect x="52.4" y="851.0" width="2.1" height="15" fill="#64f564" rx="2" ry="2"/>
 <text x="55.4" y="862.0"></text>
 </g>
 <g>
@@ -2434,8 +2434,8 @@
 <text x="376.7" y="894.0"></text>
 </g>
 <g>
-<title>StandardLogStructuredMergeTree.put (208 samples, 35.62%)</title><rect x="375.7" y="931.0" width="420.3" height="15" fill="#6dfe6d" rx="2" ry="2"/>
-<text x="378.7" y="942.0">StandardLogStructuredMergeTree.put</text>
+<title>core.StandardLogStructuredMergeTree.put (208 samples, 35.62%)</title><rect x="375.7" y="931.0" width="420.3" height="15" fill="#6dfe6d" rx="2" ry="2"/>
+<text x="378.7" y="942.0">core.StandardLogStructuredMergeTree.put</text>
 </g>
 <g>
 <title>InterpreterRuntime::frequency_counter_overflow(JavaThread*, unsigned char*) (1 samples, 0.17%)</title><rect x="385.8" y="915.0" width="2.0" height="15" fill="#d6d640" rx="2" ry="2"/>
@@ -2482,7 +2482,7 @@
 <text x="388.8" y="766.0"></text>
 </g>
 <g>
-<title>StandardMemTable.put (57 samples, 9.76%)</title><rect x="387.8" y="915.0" width="115.2" height="15" fill="#53e453" rx="2" ry="2"/>
+<title>table.StandardMemTable.put (57 samples, 9.76%)</title><rect x="387.8" y="915.0" width="115.2" height="15" fill="#53e453" rx="2" ry="2"/>
 <text x="390.8" y="926.0">StandardMemTab..</text>
 </g>
 <g>
@@ -2542,7 +2542,7 @@
 <text x="469.6" y="878.0">jav..</text>
 </g>
 <g>
-<title>StandardMemTable.size (2 samples, 0.34%)</title><rect x="503.0" y="915.0" width="4.1" height="15" fill="#5bec5b" rx="2" ry="2"/>
+<title>table.StandardMemTable.size (2 samples, 0.34%)</title><rect x="503.0" y="915.0" width="4.1" height="15" fill="#5bec5b" rx="2" ry="2"/>
 <text x="506.0" y="926.0"></text>
 </g>
 <g>
@@ -2550,7 +2550,7 @@
 <text x="508.0" y="910.0"></text>
 </g>
 <g>
-<title>StandardSSTableManager.addTableAsync (2 samples, 0.34%)</title><rect x="507.1" y="915.0" width="4.0" height="15" fill="#62f362" rx="2" ry="2"/>
+<title>table.StandardSSTableManager.addTableAsync (2 samples, 0.34%)</title><rect x="507.1" y="915.0" width="4.0" height="15" fill="#62f362" rx="2" ry="2"/>
 <text x="510.1" y="926.0"></text>
 </g>
 <g>

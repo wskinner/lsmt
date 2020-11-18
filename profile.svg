@@ -374,15 +374,15 @@
 <text x="15.1" y="766.0"></text>
 </g>
 <g>
-<title>StandardSSTableManager$addTableAsync$1.run (40 samples, 0.79%)</title><rect x="12.1" y="739.0" width="9.4" height="15" fill="#5bec5b" rx="2" ry="2"/>
+<title>table.StandardSSTableManager$addTableAsync$1.run (40 samples, 0.79%)</title><rect x="12.1" y="739.0" width="9.4" height="15" fill="#5bec5b" rx="2" ry="2"/>
 <text x="15.1" y="750.0"></text>
 </g>
 <g>
-<title>StandardSSTableManager.addTable (40 samples, 0.79%)</title><rect x="12.1" y="723.0" width="9.4" height="15" fill="#5ff05f" rx="2" ry="2"/>
+<title>table.StandardSSTableManager.addTable (40 samples, 0.79%)</title><rect x="12.1" y="723.0" width="9.4" height="15" fill="#5ff05f" rx="2" ry="2"/>
 <text x="15.1" y="734.0"></text>
 </g>
 <g>
-<title>StandardSSTableManager.nextTableFile (2 samples, 0.04%)</title><rect x="12.1" y="707.0" width="0.5" height="15" fill="#68f968" rx="2" ry="2"/>
+<title>table.StandardSSTableManager.nextTableFile (2 samples, 0.04%)</title><rect x="12.1" y="707.0" width="0.5" height="15" fill="#68f968" rx="2" ry="2"/>
 <text x="15.1" y="718.0"></text>
 </g>
 <g>
@@ -606,11 +606,11 @@
 <text x="28.9" y="718.0"></text>
 </g>
 <g>
-<title>StandardLogStructuredMergeTree.put (4,352 samples, 86.23%)</title><rect x="27.5" y="755.0" width="1017.5" height="15" fill="#6cfd6c" rx="2" ry="2"/>
-<text x="30.5" y="766.0">StandardLogStructuredMergeTree.put</text>
+<title>core.StandardLogStructuredMergeTree.put (4,352 samples, 86.23%)</title><rect x="27.5" y="755.0" width="1017.5" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="30.5" y="766.0">core.StandardLogStructuredMergeTree.put</text>
 </g>
 <g>
-<title>StandardMemTable.put (55 samples, 1.09%)</title><rect x="28.0" y="739.0" width="12.9" height="15" fill="#52e352" rx="2" ry="2"/>
+<title>table.StandardMemTable.put (55 samples, 1.09%)</title><rect x="28.0" y="739.0" width="12.9" height="15" fill="#52e352" rx="2" ry="2"/>
 <text x="31.0" y="750.0"></text>
 </g>
 <g>

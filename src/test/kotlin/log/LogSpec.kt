@@ -37,7 +37,7 @@ class LogSpec : StringSpec({
         val key = "foobar"
         val value = TreeMap<String, Any>()
 
-        val randomBytes = ByteArray(BinaryWriteAheadLogManager.blockSize * 3 + 25)
+        val randomBytes = ByteArray(BinaryWriteAheadLogManager.BLOCK_SIZE * 3 + 25)
         random.nextBytes(randomBytes)
         val value3 = Base64.getEncoder().encodeToString(randomBytes)
         wal.use {
@@ -84,7 +84,7 @@ class LogSpec : StringSpec({
         val entries = (0..100).map {
             val key = "key$it"
             val value = TreeMap<String, Any>()
-            val randomBytes = ByteArray(BinaryWriteAheadLogManager.blockSize * random.nextInt(3) + 25)
+            val randomBytes = ByteArray(BinaryWriteAheadLogManager.BLOCK_SIZE * random.nextInt(3) + 25)
             random.nextBytes(randomBytes)
             value["key0"] = 1
             value["key1"] = 10F

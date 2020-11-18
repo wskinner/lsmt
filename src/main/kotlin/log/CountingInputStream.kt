@@ -17,5 +17,3 @@ class CountingInputStream(private val delegate: InputStream) : InputStream() {
         return delegate.available()
     }
 }
-
-fun InputStream.counting() = CountingInputStream(this)

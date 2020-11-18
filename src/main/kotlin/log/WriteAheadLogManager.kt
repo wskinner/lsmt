@@ -1,16 +1,45 @@
 package log
 
-import MemTable
-import Record
-import WriteAheadLogManager
+import core.Entry
+import core.Record
+import core.currentFile
+import core.nextFile
+import counting
+import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
+import log.BinaryWriteAheadLogWriter.Companion.FULL
+import log.BinaryWriteAheadLogWriter.Companion.LAST
 import toByteArray
 import toInt
+import java.io.File
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.util.zip.CRC32C
 import kotlin.math.min
+
+interface WriteAheadLogManager : WriteAheadLogWriter {
+    // Append a record to the log.
+    override fun append(key: String, value: Record)
+
+    // Return the size, in bytes, of the log file.
+    fun size(): Long
+
+    // Start a new log file. Return the path of the old log file.
+    fun rotate(): Path
+
+    // Read the current log file and return its contents merged and sorted.
+    fun read(): List<Entry>
+}
+
+interface WriteAheadLogWriter : AutoCloseable {
+
+    // Append a record to the log.
+    fun append(key: String, value: Record)
+}
+
+data class Header(val crc: Int, val length: Int, val type: Int)
 
 /**
  *
@@ -23,13 +52,12 @@ import kotlin.math.min
  * type: uint8          // One of FULL, FIRST, MIDDLE, LAST
  * data: uint8[length]
  */
-
 class BinaryWriteAheadLogManager(
-    private val filePath: Path
+    private val rootDirectory: File,
+    private val filePrefix: String = "wal_"
 ) : WriteAheadLogManager {
-    private lateinit var os: OutputStream
-
-    private val crC32C = CRC32C()
+    private var writer: WriteAheadLogWriter = createWriter()
+    private var filePath = Paths.get("$filePrefix${currentFile(rootDirectory, filePrefix)}")
 
     /**
      * Not thread safe.
@@ -40,9 +68,53 @@ class BinaryWriteAheadLogManager(
      * The record header (checksum, length, type) requires 9 bytes. If the current block has less than 9 bytes remaining,
      * the remaining bytes must be zeroes.
      */
+    override fun close() {
+        writer.close()
+    }
+
+    override fun append(key: String, value: Record) {
+        writer.append(key, value)
+    }
+
+    override fun size(): Long {
+        return Files.size(filePath)
+    }
+
+    override fun rotate(): Path {
+        val nextIndex = nextFile(
+            filePath.parent.toFile(),
+            filePrefix
+        )
+        val newPath = Paths.get("$filePrefix$nextIndex")
+        filePath = newPath
+        close()
+        Files.move(filePath, newPath)
+        writer = createWriter()
+        return newPath
+    }
+
+    override fun read(): List<Entry> {
+        return BinaryWriteAheadLogReader(filePath).read()
+    }
+
+    private fun createWriter(): WriteAheadLogWriter {
+        val os = Files.newOutputStream(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+        return BinaryWriteAheadLogWriter(filePath, os)
+    }
+}
+
+/**
+ * Implements a binary protocol based on the one used by LevelDB. We pass the file Path and an OutputStream because the
+ * writer needs to be able to discover the file size in order to pick block boundaries.
+ */
+class BinaryWriteAheadLogWriter(
+    private val filePath: Path,
+    private val os: OutputStream
+) : WriteAheadLogWriter {
+    private val crc = CRC32C()
+
     override fun append(key: String, value: Record) {
         // A header is always 9 bytes.
-
         val data = encode(key, value)
         var length: Int
         var check: Int
@@ -53,13 +125,13 @@ class BinaryWriteAheadLogManager(
         var remainingBytes = writeTrailer()
 
         if (length <= remainingBytes + 9) {
-            type = full
-            check = checksum(type, data)
+            type = FULL
+            check = crc.checksum(type, data)
             write(check, length, type, data, offset)
         } else {
             length = remainingBytes
-            type = first
-            check = checksum(type, data, offset, length)
+            type = FIRST
+            check = crc.checksum(type, data, offset, length)
             write(check, length, type, data, offset)
 
             do {
@@ -72,15 +144,19 @@ class BinaryWriteAheadLogManager(
                 length = min(remainingBytes - 9, data.size - offset)
 
                 type = if (data.size > offset + length) {
-                    middle
+                    MIDDLE
                 } else {
-                    last
+                    LAST
                 }
 
-                check = checksum(type, data, offset, length)
+                check = crc.checksum(type, data, offset, length)
                 write(check, length, type, data, offset)
             } while (data.size > offset + length)
         }
+    }
+
+    override fun close() {
+        os.close()
     }
 
     private fun write(check: Int, length: Int, type: Int, data: ByteArray, offset: Int) {
@@ -95,55 +171,42 @@ class BinaryWriteAheadLogManager(
      * block.
      */
     private fun writeTrailer(): Int {
-        val remainingBytes = blockSize - Files.size(filePath) % blockSize
+        val remainingBytes =
+            BLOCK_SIZE - Files.size(filePath) % BLOCK_SIZE
         if (remainingBytes < 9) {
             repeat((1..remainingBytes).count()) {
                 os.write(0)
             }
         }
-        return blockSize - (Files.size(filePath) % blockSize).toInt()
-    }
-
-    override fun restore(): MemTable {
-        TODO("Not yet implemented")
-    }
-
-    override fun close() {
-        os.close()
-    }
-
-    override fun start() {
-        os = Files.newOutputStream(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
-    }
-
-    private fun checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = data.size): Int {
-        crC32C.reset()
-        crC32C.update(type)
-        crC32C.update(data, offset, length)
-        return crC32C.value.toInt()
+        return BLOCK_SIZE - (Files.size(filePath) % BLOCK_SIZE).toInt()
     }
 
     companion object {
-        const val blockSize = 1 shl 15
-        const val full = 1
-        const val first = 2
-        const val middle = 3
-        const val last = 4
+        const val BLOCK_SIZE = 1 shl 15
+        const val FULL = 1
+        const val FIRST = 2
+        const val MIDDLE = 3
+        const val LAST = 4
     }
 
-    data class Header(val crc: Int, val length: Int, val type: Int)
+}
 
-    fun read(): List<Pair<String, Record>> {
-        val result = mutableListOf<Pair<String, Record>>()
+class BinaryWriteAheadLogReader(
+    private val filePath: Path
+) {
+
+    private val crc = CRC32C()
+
+    fun read(): List<Entry> {
+        val result = mutableListOf<Entry>()
         filePath.toFile().inputStream().counting().use {
             while (it.available() > 0) {
                 val record = it.readRecord()
                 result.add(record)
-
             }
         }
 
-        return result
+        return result.sortedBy { it.first }
     }
 
     private fun CountingInputStream.readHeader(): Header {
@@ -156,17 +219,17 @@ class BinaryWriteAheadLogManager(
 
     private fun CountingInputStream.readData(header: Header): ByteArray {
         val data = readNBytes(header.length)
-        if (checksum(header.type, data) != header.crc) {
+        if (crc.checksum(header.type, data) != header.crc) {
             println("Corrupt record")
         }
         return data
     }
 
-    private fun CountingInputStream.readRecord(): Pair<String, Record> {
+    private fun CountingInputStream.readRecord(): Entry {
         var header = readHeader()
-        var data = readData(header)
+        val data = readData(header)
 
-        if (header.type == full) {
+        if (header.type == FULL) {
             return data.inputStream().decode()
         }
 
@@ -176,14 +239,23 @@ class BinaryWriteAheadLogManager(
             header = readHeader()
             allData.add(readData(header))
 
-            val bytesRemainingInBlock = (blockSize - (bytesRead % blockSize)).toInt()
+            val bytesRemainingInBlock =
+                (BLOCK_SIZE - (bytesRead % BLOCK_SIZE)).toInt()
             if (bytesRemainingInBlock < 9) {
                 // We'll never start a new record with < 9 bytes remaining, since the header will not fit in a
                 // single block. The remaining bytes will have been filled with zero padding. Skip them.
                 readNBytes(bytesRemainingInBlock)
             }
-        } while (header.type != last)
+        } while (header.type != LAST)
 
         return ArraysInputStream(allData).decode()
     }
+
+}
+
+private fun CRC32C.checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = data.size): Int {
+    reset()
+    update(type)
+    update(data, offset, length)
+    return value.toInt()
 }

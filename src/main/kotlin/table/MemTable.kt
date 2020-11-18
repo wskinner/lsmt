@@ -1,3 +1,6 @@
+package table
+
+import core.Record
 import java.util.*
 
 interface MemTable : Iterable<MutableMap.MutableEntry<String, Record>> {

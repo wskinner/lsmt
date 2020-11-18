@@ -1,4 +1,9 @@
+import core.LogStructuredMergeTree
+import core.StandardLogStructuredMergeTree
 import log.BinaryWriteAheadLogManager
+import table.StandardManifestManager
+import table.StandardMemTable
+import table.StandardSSTableManager
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -37,7 +42,7 @@ fun main() {
         StandardSSTableManager(
             File("./build/sstables"),
             StandardSerializer(),
-            StandardManifest(
+            StandardManifestManager(
                 Path.of("./build/sstables/manifest.txt")
             )
         ),
