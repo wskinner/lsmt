@@ -21,6 +21,7 @@ class TableCache(
     private val operations = AtomicLong()
 
     // Estimate the size of a table in memory using the raw disk size.
+    // TODO (will) move the cache off heap
     private val cache = LRUCache<Long, SortedMap<String, Record?>>(maxSizeMB / 2)
 
     private val tableWriteSemaphore = Semaphore(10, true)

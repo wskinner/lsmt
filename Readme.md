@@ -30,7 +30,8 @@ JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling a
 Benchmarks data is from my 2018 MacBook Pro with a 2.7 GHz Quad-Core Intel Core i7.
 ```text
 Benchmark                      Mode  Cnt       Score         Error       Units
-SequentialWrites.singleWrite  thrpt    2       415899.844                ops/s
+SequentialWrites.singleWrite  thrpt    2  246461.567                     ops/s
+SequentialReads.singleRead    thrpt   10  1280590.622 ± 2871877.502      ops/s
 ```
 ## Running benchmarks
 Benchmarks can be run with
