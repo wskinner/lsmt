@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 @BenchmarkMode(Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @Threads(1)
-@Measurement(iterations = 2)
+@Measurement(iterations = 4)
 @Fork(1)
 @Warmup(iterations = 1)
 open class SequentialWrites {

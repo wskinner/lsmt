@@ -8,12 +8,14 @@ import com.lsmt.log.Header
 import com.lsmt.readHeader
 import com.lsmt.toInt
 import com.lsmt.toKey
+import mu.KotlinLogging
 import java.io.ByteArrayOutputStream
 import java.lang.Integer.min
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicLong
+import java.util.zip.CRC32C
 
-interface TableIterator {
+interface KeyIterator {
     /**
      * Search for the key. If found and the record is a deletion, return null. If not found, return false. Otherwise
      * return true.
@@ -32,15 +34,17 @@ interface TableIterator {
 /**
  * Expose the bytes in the sub-buffer starting at startIndex as a lazy stream.
  */
-class StandardTableIterator(
+class StandardKeyIterator(
     private val delegate: ByteBuffer,
     private val startIndex: Int,
     private val dataLimit: Int
-) : TableIterator {
+) : KeyIterator {
 
     init {
         delegate.position(startIndex)
     }
+
+    private val crc = CRC32C()
 
     // Offset of the first header of the record we are currently iterating
     private var currentRecordOffset = 0
@@ -51,7 +55,7 @@ class StandardTableIterator(
     // Offset into the data array of the current header
     private var currentOffset: Int = 0
 
-    private var currentKeyDelete = readKey()
+    private var currentKeyAndSize = readKey()
 
     /**
      * Increment the position in the buffer until the value of position() is the first data byte of a FIRST or FULL
@@ -59,10 +63,10 @@ class StandardTableIterator(
      *
      */
     private fun seekToNextRecord(): Header {
-        var header = delegate.readHeader()
+        var header = readHeader()
         while (header.type != FIRST && header.type != FULL && delegate.position() + header.length < dataLimit) {
             delegate.position(delegate.position() + header.length)
-            header = delegate.readHeader()
+            header = readHeader()
         }
         currentRecordOffset = delegate.position() - 9
         return header
@@ -73,24 +77,33 @@ class StandardTableIterator(
         if (delegate.position() < dataLimit) {
             currentOffset = 0
             currentHeader = seekToNextRecord()
-            currentKeyDelete = readKey()
+            currentKeyAndSize = readKey()
         }
     }
 
     /**
-     * Read and return all data until the next header.
+     * Read and return all data until the next header. At this point, we've already read the first header, key size, and
+     * key.
      */
     private fun readToNextRecord(): ByteArray {
         val baos = ByteArrayOutputStream()
         baos.writeBytes(readNBytes(currentHeader.length - currentOffset))
         while (currentHeader.type != FIRST && currentHeader.type != FULL) {
-            baos.writeBytes(readNBytes(currentHeader.length))
+            val bytes = readNBytes(currentHeader.length)
+            baos.writeBytes(bytes)
         }
-        val result = baos.toByteArray()
 
-        return result
+        return baos.toByteArray()
     }
 
+    private fun verifyChecksum() {
+        if (crc.value.toInt() != currentHeader.crc)
+            logger.error("Corrupt record")
+    }
+
+    /**
+     * Read some bytes from the data portion of the record.
+     */
     private fun readNBytes(len: Int): ByteArray {
         val result = ByteArray(len)
         var resultOffset = 0
@@ -102,11 +115,13 @@ class StandardTableIterator(
                 resultOffset,
                 amount
             )
+            crc.update(result, resultOffset, amount)
             currentOffset += amount
             remaining -= amount
             resultOffset += amount
             if (currentOffset == currentHeader.length && delegate.position() < dataLimit) {
-                currentHeader = delegate.readHeader()
+                verifyChecksum()
+                currentHeader = readHeader()
                 currentOffset = 0
             }
         }
@@ -114,21 +129,20 @@ class StandardTableIterator(
         return result
     }
 
-    private fun readKey(): Pair<Key, Boolean> {
-        val size = readNBytes(4).toInt()
-        val isDelete = size and DELETE_MASK < 0
-        val keySize = size and Integer.MAX_VALUE
-        val key = readNBytes(keySize)
-        return key.toKey() to isDelete
+    private fun readKey(): Pair<Key, Int> {
+        val size = readNBytes(4)
+        val sizeInt = size.toInt()
+        val key = readNBytes(sizeInt.keySize())
+        return key.toKey() to sizeInt
     }
 
     override fun seek(targetKey: Key): Boolean? {
         totalReads.getAndIncrement()
-        while (currentKeyDelete.first != targetKey && delegate.position() < dataLimit)
+        while (currentKeyAndSize.first != targetKey && delegate.position() < dataLimit)
             advance()
 
-        return if (currentKeyDelete.first == targetKey) {
-            if (currentKeyDelete.second) {
+        return if (currentKeyAndSize.first == targetKey) {
+            if (currentKeyAndSize.second.isDelete()) {
                 null
             } else {
                 true
@@ -136,6 +150,13 @@ class StandardTableIterator(
         } else {
             false
         }
+    }
+
+    private fun readHeader(): Header {
+        val result = delegate.readHeader()
+        crc.reset()
+        crc.update(result.type)
+        return result
     }
 
     override fun read(): ByteArray {
@@ -149,5 +170,10 @@ class StandardTableIterator(
     companion object {
         val totalSeekBytes = AtomicLong()
         val totalReads = AtomicLong()
+        val logger = KotlinLogging.logger { }
     }
 }
+
+fun Int.isDelete(): Boolean = this and DELETE_MASK < 0
+
+fun Int.keySize() = this and Integer.MAX_VALUE

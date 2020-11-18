@@ -30,6 +30,20 @@ fun CRC32C.checksum(
     return value.toInt()
 }
 
+fun CRC32C.checksum(
+    type: Int,
+    size: Int,
+    key: ByteArray,
+    otherData: ByteArray,
+): Int {
+    reset()
+    update(type)
+    update(size)
+    update(key)
+    update(otherData)
+    return value.toInt()
+}
+
 fun longBytesSeq() = sequence {
     for (i in 0L until Long.MAX_VALUE)
     // We want smaller numbers to sort in front of bigger ones, so big endian is required.

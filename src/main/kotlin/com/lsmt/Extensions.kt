@@ -13,6 +13,7 @@ import com.lsmt.table.StandardTableBuffer
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.MappedByteBuffer
+import java.util.zip.CRC32C
 
 fun Int.toByteArray(littleEndian: Boolean = true): ByteArray = Bytes.intToBytes(this, littleEndian)
 fun Long.toByteArray(littleEndian: Boolean = true): ByteArray = Bytes.longToBytes(this, littleEndian)

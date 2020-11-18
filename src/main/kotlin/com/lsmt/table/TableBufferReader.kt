@@ -32,7 +32,7 @@ class TableBufferReader(
      * TODO (will) optimize this a bit.
      */
     private fun getInBlock(targetKey: Key, block: BlockHandle): Record? {
-        val iterator = StandardTableIterator(delegate, block.offset, dataLimit)
+        val iterator = StandardKeyIterator(delegate, block.offset, dataLimit)
         val found = iterator.seek(targetKey)
         if (found == null || found == false) {
             return null

@@ -3,7 +3,7 @@ package benchmarks
 import com.lsmt.core.Key
 import com.lsmt.core.LogStructuredMergeTree
 import com.lsmt.core.Record
-import com.lsmt.table.StandardTableIterator
+import com.lsmt.table.StandardKeyIterator
 import org.openjdk.jmh.annotations.*
 import java.util.concurrent.TimeUnit
 
@@ -42,8 +42,8 @@ open class SequentialReads {
     @TearDown
     fun metrics() {
         println(
-            "totalSeekBytes=${StandardTableIterator.totalSeekBytes.get()} totalReads=${StandardTableIterator.totalReads.get()} averageSeekBytes = ${
-                StandardTableIterator.totalSeekBytes.get().toDouble() / StandardTableIterator.totalReads.get()
+            "totalSeekBytes=${StandardKeyIterator.totalSeekBytes.get()} totalReads=${StandardKeyIterator.totalReads.get()} averageSeekBytes = ${
+                StandardKeyIterator.totalSeekBytes.get().toDouble() / StandardKeyIterator.totalReads.get()
             }"
         )
     }
