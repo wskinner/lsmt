@@ -1,6 +1,6 @@
 package com.lsmt.table
 
-import com.lsmt.core.*
+import com.lsmt.domain.*
 import com.lsmt.readInt
 import com.lsmt.readNBytes
 import com.lsmt.toKey

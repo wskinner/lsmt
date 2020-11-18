@@ -1,6 +1,8 @@
 package com.lsmt
 
 import com.lsmt.core.*
+import com.lsmt.domain.Key
+import com.lsmt.domain.StandardLevel
 import com.lsmt.log.BinaryLogWriter
 import com.lsmt.log.SynchronizedFileGenerator
 import com.lsmt.log.createLogReader
@@ -13,7 +15,7 @@ import java.util.*
  */
 
 fun parseConfig(): Config {
-    return Config
+    return DefaultConfig
 }
 
 const val keyRangeSize = 10_000_000

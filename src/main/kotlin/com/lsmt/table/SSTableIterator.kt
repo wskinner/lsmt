@@ -1,6 +1,6 @@
 package com.lsmt.table
 
-import com.lsmt.core.Entry
+import com.lsmt.domain.Entry
 import com.lsmt.counting
 import com.lsmt.inputStream
 import java.nio.ByteBuffer

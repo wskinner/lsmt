@@ -1,7 +1,8 @@
 package com.lsmt.core
 
 import ch.qos.logback.classic.Level
-import com.lsmt.Config
+import com.lsmt.domain.Key
+import com.lsmt.domain.Record
 import com.lsmt.log.BinaryLogManager
 import com.lsmt.table.MemTable
 import com.lsmt.table.SSTableManager
@@ -24,7 +25,7 @@ class StandardLogStructuredMergeTree(
     private val memTableFactory: () -> MemTable,
     private val ssTable: SSTableManager,
     private val writeAheadLog: BinaryLogManager,
-    private val config: Config,
+    private val config: Config = DefaultConfig,
     logLevel: Level = Level.INFO
 ) : LogStructuredMergeTree {
 

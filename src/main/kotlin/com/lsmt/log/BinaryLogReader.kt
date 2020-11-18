@@ -1,17 +1,17 @@
 package com.lsmt.log
 
-import com.lsmt.core.Entry
 import com.lsmt.counting
+import com.lsmt.domain.Entry
 import mu.KotlinLogging
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.zip.CRC32C
 
+/**
+ * Reader class for WAL files.
+ */
 class BinaryLogReader(
     private val filePath: Path
 ) {
-
-    private val crc = CRC32C()
 
     fun readAll(): List<Entry> = read().toList()
 
@@ -32,5 +32,4 @@ class BinaryLogReader(
     companion object {
         val logger = KotlinLogging.logger { }
     }
-
 }

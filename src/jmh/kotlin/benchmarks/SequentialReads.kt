@@ -1,8 +1,8 @@
 package benchmarks
 
-import com.lsmt.core.Key
 import com.lsmt.core.LogStructuredMergeTree
-import com.lsmt.core.Record
+import com.lsmt.domain.Key
+import com.lsmt.domain.Record
 import com.lsmt.table.StandardKeyIterator
 import org.openjdk.jmh.annotations.*
 import java.util.concurrent.TimeUnit
@@ -34,7 +34,7 @@ open class SequentialReads {
 
     @Setup
     fun setup() {
-        tree = treeFactory().apply { fillTree(keySeq(), keyRangeSize) }
+        tree = treeFactory().apply { fillTree(keyRangeSize, valueSize) }
         // Synchronize on the completion of compaction and SSTable creation.
         tree?.close()
     }
@@ -55,5 +55,6 @@ open class SequentialReads {
 
     companion object {
         const val keyRangeSize = 10_000_000
+        const val valueSize = 100
     }
 }

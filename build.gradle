@@ -6,9 +6,10 @@ plugins {
 
 jmh {
     include = [
-            ".*SequentialReads.*",
-            ".*SequentialWrites.*",
-            ".*RandomReads.*"
+//            ".*SequentialReads.*",
+//            ".*SequentialWrites.*",
+//            ".*RandomReads.*",
+            ".*RandomWrites.*"
     ]
     duplicateClassesStrategy = 'warn'
     jvmArgs = ["-XX:+PreserveFramePointer"]

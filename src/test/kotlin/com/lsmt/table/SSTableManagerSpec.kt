@@ -1,8 +1,10 @@
 package com.lsmt.table
 
 import ch.qos.logback.classic.Level.DEBUG
-import com.lsmt.Config
+import com.lsmt.core.DefaultConfig
 import com.lsmt.core.*
+import com.lsmt.domain.Entry
+import com.lsmt.domain.StandardLevel
 import com.lsmt.log.*
 import com.lsmt.toKey
 import com.lsmt.treeFactory
@@ -14,14 +16,14 @@ import java.util.*
 class SSTableManagerSpec : StringSpec({
     "write many tables" {
         val sstableDir = createTempDir().apply { deleteOnExit() }
-        val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
+        val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, DefaultConfig.sstablePrefix)
         val fileManager = createSSTableManager(sstableFileGenerator)
 
         val tables = mutableListOf<SSTableMetadata>()
         fileManager.use {
             for ((key, value) in entrySeq()) {
                 fileManager.append(key, value)
-                if (fileManager.totalBytes() > Config.maxSstableSize) {
+                if (fileManager.totalBytes() > DefaultConfig.maxSstableSize) {
                     val handle = fileManager.rotate()
                     tables.add(
                         SSTableMetadata(
@@ -60,7 +62,7 @@ class SSTableManagerSpec : StringSpec({
 
     "merge tables" {
         val sstableDir = createTempDir().apply { deleteOnExit() }
-        val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
+        val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, DefaultConfig.sstablePrefix)
         val walFileGenerator = mockk<SynchronizedFileGenerator>()
         val fileManager = createSSTableManager(sstableFileGenerator)
 
@@ -70,7 +72,7 @@ class SSTableManagerSpec : StringSpec({
             for ((key, value) in entrySeq()) {
                 totalEntries++
                 fileManager.append(key, value)
-                if (fileManager.totalBytes() > Config.maxSstableSize) {
+                if (fileManager.totalBytes() > DefaultConfig.maxSstableSize) {
                     val handle = fileManager.rotate()
                     tables.add(
                         SSTableMetadata(
@@ -107,7 +109,7 @@ class SSTableManagerSpec : StringSpec({
 
         val cache = TableCache(
             BinarySSTableReader(),
-            Config.maxCacheSizeMB,
+            DefaultConfig.maxCacheSizeMB,
             sstableFileGenerator = sstableFileGenerator,
             walFileGenerator = walFileGenerator
         )
@@ -161,15 +163,15 @@ class SSTableManagerSpec : StringSpec({
 fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
     val walDir = createTempDir().apply { deleteOnExit() }
     val sstableDir = createTempDir().apply { deleteOnExit() }
-    val walFileGenerator = SynchronizedFileGenerator(walDir, Config.walPrefix)
-    val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
+    val walFileGenerator = SynchronizedFileGenerator(walDir, DefaultConfig.walPrefix)
+    val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, DefaultConfig.sstablePrefix)
 
     val tableController = StandardSSTableController(
-        Config.maxSstableSize,
+        DefaultConfig.maxSstableSize,
         manifestManager,
         TableCache(
             BinarySSTableReader(),
-            Config.maxCacheSizeMB,
+            DefaultConfig.maxCacheSizeMB,
             sstableFileGenerator = sstableFileGenerator,
             walFileGenerator = walFileGenerator
         ),
@@ -180,7 +182,7 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
     val tableManager = StandardSSTableManager(
         sstableDir,
         manifestManager,
-        Config,
+        DefaultConfig,
         tableController
     )
 
@@ -192,7 +194,7 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
         },
         tableManager,
         createWalManager(walFileGenerator),
-        Config,
+        DefaultConfig,
         DEBUG
     ).apply { start() }
 }

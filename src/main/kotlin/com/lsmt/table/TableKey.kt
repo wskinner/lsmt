@@ -1,6 +1,6 @@
 package com.lsmt.table
 
-import com.lsmt.core.Key
+import com.lsmt.domain.Key
 
 data class TableKey(val minKey: Key, val id: Long) {
     override fun equals(other: Any?): Boolean {

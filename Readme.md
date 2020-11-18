@@ -28,10 +28,10 @@ JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling a
 
 ## Latest benchmark
 ```text
-Benchmark                      Mode  Cnt        Score         Error  Units
-RandomReads.singleRead        thrpt   10   366481.692 ±  158136.595  ops/s
-SequentialReads.singleRead    thrpt   10  3910790.792 ± 1050654.544  ops/s
-SequentialWrites.singleWrite  thrpt    4   493385.924 ±   14919.372  ops/s
+Benchmark                      Mode  Cnt        Score        Error  Units
+RandomReads.singleRead        thrpt   10   329727.983 ± 136288.137  ops/s
+SequentialReads.singleRead    thrpt   10  2814174.762 ± 558886.383  ops/s
+SequentialWrites.singleWrite  thrpt    4  1124276.392 ± 610566.036  ops/s
 ```
 
 ## Running benchmarks

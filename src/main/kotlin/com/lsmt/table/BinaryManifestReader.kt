@@ -1,7 +1,7 @@
 package com.lsmt.table
 
-import com.lsmt.core.Level
-import com.lsmt.core.LevelIndex
+import com.lsmt.domain.Level
+import com.lsmt.domain.LevelIndex
 import com.lsmt.log.BinaryLogReader
 import com.lsmt.toSSTableMetadata
 import java.util.*

@@ -1,21 +1,20 @@
 package com.lsmt.log
 
-import com.lsmt.core.Key
-import com.lsmt.core.Record
 import com.lsmt.core.checksum
+import com.lsmt.domain.Key
+import com.lsmt.domain.Record
 import com.lsmt.toByteArray
 import java.io.OutputStream
 import java.util.zip.CRC32C
 import kotlin.math.min
 
 /**
- * Implements a binary protocol based on the one used by LevelDB.
- *
- * The file is formatted as follows:
+ * Implements a binary protocol based on the one used by LevelDB. After append() returns, the
  *
  */
 open class BinaryLogWriter(
-    protected val os: OutputStream
+    protected val os: OutputStream,
+    private val flushAfterAppend: Boolean = false
 ) : LogWriter {
     protected val crc = CRC32C()
     protected var totalBytes: Int = 0
@@ -24,8 +23,11 @@ open class BinaryLogWriter(
     override fun append(key: Key, value: Record?): Int {
         // A header is always 9 bytes.
         val data = encode(key, value)
+        if (flushAfterAppend)
+            os.flush()
         return appendBytes(data)
     }
+
 
     private fun appendBytes(data: ByteArray): Int {
         val startingBytes = totalBytes
@@ -87,6 +89,9 @@ open class BinaryLogWriter(
         }
     }
 
+    /**
+     * Write the given contents into the log, and return the number of bytes written.
+     */
     private fun write(check: Int, length: Int, type: Int, data: ByteArray, offset: Int): Int {
         val checkBytes = check.toByteArray()
         val lengthBytes = length.toByteArray()

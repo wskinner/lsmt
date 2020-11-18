@@ -1,8 +1,8 @@
 package com.lsmt.table
 
-import com.lsmt.core.Entry
-import com.lsmt.core.Key
-import com.lsmt.core.Record
+import com.lsmt.domain.Entry
+import com.lsmt.domain.Key
+import com.lsmt.domain.Record
 import mu.KotlinLogging
 
 /**

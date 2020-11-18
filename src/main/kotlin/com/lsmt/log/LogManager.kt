@@ -1,7 +1,7 @@
 package com.lsmt.log
 
-import com.lsmt.core.Key
-import com.lsmt.core.Record
+import com.lsmt.domain.Key
+import com.lsmt.domain.Record
 import com.lsmt.log.BinaryLogWriter.Companion.BLOCK_SIZE
 import com.lsmt.table.SSTableWriter
 import mu.KotlinLogging

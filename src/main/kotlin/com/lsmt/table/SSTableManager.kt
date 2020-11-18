@@ -1,8 +1,8 @@
 package com.lsmt.table
 
-import com.lsmt.Config
-import com.lsmt.core.Key
-import com.lsmt.core.Record
+import com.lsmt.core.Config
+import com.lsmt.domain.Key
+import com.lsmt.domain.Record
 import mu.KotlinLogging
 import java.io.File
 import java.util.concurrent.ExecutorService

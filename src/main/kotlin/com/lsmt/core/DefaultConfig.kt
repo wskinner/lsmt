@@ -1,6 +1,6 @@
-package com.lsmt
+package com.lsmt.core
 
-object Config {
+class Config {
     val maxWalSize = 4_000_000
     val sstablePrefix = "sstable_"
     val maxSstableSize = 2_000_000
@@ -9,3 +9,5 @@ object Config {
     val maxCacheSizeMB = 500
     val maxActiveTableCreationTasks = 2
 }
+
+val DefaultConfig = Config()

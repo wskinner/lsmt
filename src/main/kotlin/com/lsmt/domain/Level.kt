@@ -1,4 +1,4 @@
-package com.lsmt.core
+package com.lsmt.domain
 
 import com.lsmt.overlaps
 import com.lsmt.table.SSTableMetadata

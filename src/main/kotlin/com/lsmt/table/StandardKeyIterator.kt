@@ -1,6 +1,6 @@
 package com.lsmt.table
 
-import com.lsmt.core.Key
+import com.lsmt.domain.Key
 import com.lsmt.log.BinaryLogWriter.Companion.FIRST
 import com.lsmt.log.BinaryLogWriter.Companion.FULL
 import com.lsmt.log.DELETE_MASK

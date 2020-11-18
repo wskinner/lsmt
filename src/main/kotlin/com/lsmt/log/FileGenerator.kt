@@ -1,6 +1,6 @@
 package com.lsmt.log
 
-import com.lsmt.core.NumberedFile
+import com.lsmt.domain.NumberedFile
 import com.lsmt.core.makeFile
 import mu.KotlinLogging
 import java.io.File

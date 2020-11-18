@@ -1,10 +1,11 @@
 package com.lsmt.log
 
-import com.lsmt.core.Entry
 import com.lsmt.core.checksum
+import com.lsmt.domain.Entry
 import com.lsmt.toInt
 import mu.KotlinLogging
 import java.io.InputStream
+import java.io.SequenceInputStream
 import java.util.zip.CRC32C
 
 /**
@@ -71,7 +72,7 @@ class CountingInputStream(private val delegate: InputStream) : InputStream() {
         val data = readData(header)
 
         if (header.type == BinaryLogWriter.FULL) {
-            return ArraysInputStream(listOf(data)).decode()
+            return data.inputStream().decode()
         }
 
         val allData = mutableListOf(data)
@@ -81,10 +82,13 @@ class CountingInputStream(private val delegate: InputStream) : InputStream() {
             allData.add(readData(header))
         } while (header.type != BinaryLogWriter.LAST)
 
-        return ArraysInputStream(allData).decode()
+        return allData.concat().decode()
     }
 
     companion object {
         val logger = KotlinLogging.logger { }
     }
 }
+
+fun List<ByteArray>.concat(): InputStream = map { it.inputStream() as InputStream }
+    .reduce(operation = { acc, inputStream -> SequenceInputStream(acc, inputStream) })

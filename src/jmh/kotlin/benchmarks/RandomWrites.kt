@@ -17,9 +17,12 @@ import java.util.concurrent.TimeUnit
 @Measurement(iterations = 4)
 @Fork(1)
 @Warmup(iterations = 1)
-open class SequentialWrites {
+open class RandomWrites {
     private var tree: LogStructuredMergeTree? = null
-    private val iterator: Iterator<Entry> = entrySeq(keyRangeSize, valueSize).iterator()
+    private val iterator: Iterator<Entry> = entrySeq(keyRangeSize, valueSize)
+        .shuffled()
+        .repeat(100)
+        .iterator()
 
     @Setup
     fun setup() {
@@ -38,7 +41,7 @@ open class SequentialWrites {
     }
 
     companion object {
-        const val keyRangeSize = 1_000_000_000
+        const val keyRangeSize = 10_000_000
         const val valueSize = 100
     }
 }

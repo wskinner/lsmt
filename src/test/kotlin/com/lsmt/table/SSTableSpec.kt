@@ -1,7 +1,7 @@
 package com.lsmt.table
 
-import com.lsmt.core.Key
-import com.lsmt.core.Record
+import com.lsmt.domain.Key
+import com.lsmt.domain.Record
 import com.lsmt.core.longBytesSeq
 import com.lsmt.log.SynchronizedFileGenerator
 import com.lsmt.log.createSSTableManager
