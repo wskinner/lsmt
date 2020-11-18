@@ -4,8 +4,8 @@ import com.lsmt.core.Entry
 import com.lsmt.core.Record
 import com.lsmt.core.TableEntry
 import com.lsmt.core.maxLevelSize
-import com.lsmt.log.BinaryLogManager
 import com.lsmt.log.FileGenerator
+import com.lsmt.log.createSSTableManager
 import mu.KotlinLogging
 import java.util.*
 import java.util.concurrent.Executors
@@ -96,13 +96,17 @@ class StandardSSTableController(
         }
 
         val ids = mergeTask.sourceTables.map { it.id }
-
-        val fileManager = BinaryLogManager(fileGenerator)
         logMergeTask(ids, targetLevel, compactionId, "started")
+
+        val fileManager = try {
+            createSSTableManager(fileGenerator)
+        } catch (t: Throwable) {
+            logger.error(t) { "Couldn't create file manager" }
+            return
+        }
         try {
             val seq = merge(destTables.toList() + mergeTask.sourceTables)
 
-            var totalBytes = 0
             var minKey: String? = null
             var maxKey: String? = null
 
@@ -112,21 +116,20 @@ class StandardSSTableController(
                 if (minKey == null)
                     minKey = key
 
-                totalBytes += fileManager.append(key, value)
                 tableCache.write(fileManager.id, key, value)
-                if (totalBytes >= maxTableSize) {
+                fileManager.append(key, value)
+                if (fileManager.totalBytes() >= maxTableSize) {
+                    val logHandle = fileManager.rotate()
                     manifest.addTable(
                         SSTableMetadata(
-                            path = fileManager.filePath.toString(),
+                            path = fileGenerator.path(logHandle.id).toString(),
                             minKey = minKey!!,
                             maxKey = key,
                             level = targetLevel,
-                            id = fileManager.id,
-                            fileSize = totalBytes
+                            id = logHandle.id,
+                            fileSize = logHandle.totalBytes
                         )
                     )
-                    totalBytes = 0
-                    fileManager.rotate()
                     minKey = null
                 }
             }
@@ -143,16 +146,16 @@ class StandardSSTableController(
                 manifest.removeTable(table)
             }
 
-            fileManager.close()
-            if (totalBytes > 0) {
+            val logHandle = fileManager.rotate()
+            if (logHandle.totalBytes > 0) {
                 manifest.addTable(
                     SSTableMetadata(
-                        path = fileManager.filePath.toString(),
+                        path = fileGenerator.path(logHandle.id).toString(),
                         minKey = minKey!!,
                         maxKey = maxKey!!,
                         level = targetLevel,
-                        id = fileManager.id,
-                        fileSize = totalBytes
+                        id = logHandle.id,
+                        fileSize = logHandle.totalBytes
                     )
                 )
             }

@@ -1,5 +1,6 @@
 package com.lsmt.core
 
+import com.lsmt.toByteArray
 import java.io.File
 import java.nio.file.Path
 import java.util.zip.CRC32C
@@ -25,9 +26,28 @@ fun maxLevelSize(level: Int): Int =
     else
         10.0.pow(level.toDouble()).toInt()
 
-fun CRC32C.checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = data.size): Int {
+fun CRC32C.checksum(
+    type: Int,
+    data: ByteArray,
+    offset: Int = 0,
+    length: Int = data.size
+): Int {
     reset()
     update(type)
     update(data, offset, length)
     return value.toInt()
+}
+
+fun CRC32C.checksum(
+    type: Int,
+    size: Int,
+    key: ByteArray,
+    value: ByteArray
+): Int {
+    reset()
+    update(type)
+    update(size.toByteArray())
+    update(key)
+    update(value)
+    return this.value.toInt()
 }

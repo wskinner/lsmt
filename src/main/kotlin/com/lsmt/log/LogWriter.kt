@@ -12,4 +12,9 @@ interface LogWriter : AutoCloseable {
 
     // Total number of bytes written to the file.
     fun size(): Int
+
+    /**
+     * Return the number of bytes written since the last rotate() call
+     */
+    fun totalBytes(): Int
 }

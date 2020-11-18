@@ -1,34 +1,38 @@
 package com.lsmt.table
 
-import com.lsmt.Config
 import com.lsmt.core.Record
-import com.lsmt.core.makeFile
-import com.lsmt.log.createLogReader
-import java.io.File
+import com.lsmt.tableBuffer
+import java.io.RandomAccessFile
+import java.nio.channels.FileChannel.MapMode.READ_ONLY
 import java.util.*
 
-class BinarySSTableReader(
-    private val rootDirectory: File,
-    private val prefix: String = Config.sstablePrefix
-) : SSTableReader {
-    override fun read(table: SSTableMetadata, key: String): Record? {
-        val file = makeFile(rootDirectory, prefix, table.id)
-        val reader = createLogReader(file)
+/**
+ * Handles logic for reading SSTables.
+ */
+interface SSTableReader {
+    fun readAll(table: SSTableMetadata): SortedMap<String, Record?>
 
-        return reader.readAll()
-            .firstOrNull { it.first == key }
-            ?.second
-    }
+    /**
+     * Memory map the file and return the resulting SSTable.
+     */
+    fun mmap(table: SSTableMetadata): SSTable
+}
 
+class BinarySSTableReader : SSTableReader {
     override fun readAll(table: SSTableMetadata): SortedMap<String, Record?> {
-        val file = makeFile(rootDirectory, prefix, table.id)
-        val reader = createLogReader(file)
-        val entries = reader.readAll()
+        val reader = mmap(table).iterator()
         val result = TreeMap<String, Record?>()
-        for (entry in entries) {
+        for (entry in reader) {
             result[entry.first] = entry.second
         }
 
         return result
     }
+
+    override fun mmap(table: SSTableMetadata): SSTable = StandardSSTable(
+        RandomAccessFile(table.path, "r")
+            .channel
+            .map(READ_ONLY, 0, table.fileSize.toLong())
+            .tableBuffer(table)
+    )
 }

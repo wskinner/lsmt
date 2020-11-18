@@ -5,6 +5,7 @@ import com.lsmt.core.Record
 import com.lsmt.log.BinaryLogManager
 import com.lsmt.log.FileGenerator
 import com.lsmt.log.createLogReader
+import com.lsmt.log.createSSTableManager
 import mu.KotlinLogging
 import java.util.*
 import java.util.concurrent.Semaphore
@@ -22,7 +23,7 @@ class TableCache(
 
     // Estimate the size of a table in memory using the raw disk size.
     // TODO (will) move the cache off heap
-    private val cache = LRUCache<Long, SortedMap<String, Record?>>(maxSizeMB / 2)
+    private val cache = LRUCache<Long, SSTable>(maxSizeMB / 2)
 
     private val tableWriteSemaphore = Semaphore(10, true)
 
@@ -34,24 +35,25 @@ class TableCache(
 
         if (!cache.containsKey(table.id)) {
             cacheMisses.incrementAndGet()
-            cache[table.id] = reader.readAll(table)
+            cache[table.id] = reader.mmap(table)
         }
         return cache[table.id]?.get(key)
     }
 
     fun read(table: SSTableMetadata): Sequence<Entry> = sequence {
         if (!cache.containsKey(table.id)) {
-            cache[table.id] = reader.readAll(table)
+            cache[table.id] = reader.mmap(table)
         }
 
         cache[table.id]?.forEach {
-            yield(it.key to it.value)
+            yield(it.first to it.second)
         }
     }
 
+    // TODO (will) split read and write buffers.
     fun write(table: Long, key: String, value: Record?) {
-        val map = cache.getOrPut(table, { TreeMap() })
-        map[key] = value
+//        val map = cache.getOrPut(table, { TreeMap() })
+//        map[key] = value
     }
 
     /**
@@ -62,7 +64,7 @@ class TableCache(
      * TODO (will) implement a sort on the raw bytes to avoid object churn
      */
     fun write(logId: Long): SSTableMetadata {
-        BinaryLogManager(sstableFileGenerator).use { writer ->
+        createSSTableManager(sstableFileGenerator).use { writer ->
             val data = createLogReader(walFileGenerator.path(logId))
                 .readAll()
                 .sortedBy { it.first }
@@ -91,28 +93,32 @@ class TableCache(
         try {
             tableWriteSemaphore.acquire()
             logger.debug("write() started")
-            BinaryLogManager(sstableFileGenerator).use { writer ->
+            val logManager = createSSTableManager(sstableFileGenerator)
+            logManager.use { writer ->
                 val result = TreeMap<String, Record?>()
-                var totalBytes = 0
                 log.forEach { entry ->
                     result[entry.key] = entry.value
-                    totalBytes += writer.append(entry.key, entry.value)
+                    writer.append(entry.key, entry.value)
                 }
 
-                val tableMeta = SSTableMetadata(
-                    path = writer.filePath.toString(),
-                    minKey = log.first().key,
-                    maxKey = log.last().key,
-                    level = 0,
-                    id = writer.id,
-                    fileSize = totalBytes
-                )
 
-                synchronized(cache) {
-                    cache[tableMeta.id] = result
-                }
-                return tableMeta
             }
+
+            val logHandle = logManager.rotate()
+
+            // TODO (will) put this back
+//                synchronized(cache) {
+//                    cache[tableMeta.id] = result
+//                }
+
+            return SSTableMetadata(
+                path = sstableFileGenerator.path(logHandle.id).toString(),
+                minKey = log.first().key,
+                maxKey = log.last().key,
+                level = 0,
+                id = logHandle.id,
+                fileSize = logHandle.totalBytes
+            )
         } finally {
             logger.debug("write() log=$log finished")
             tableWriteSemaphore.release()

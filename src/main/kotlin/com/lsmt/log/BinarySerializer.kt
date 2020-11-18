@@ -42,25 +42,9 @@ fun encode(key: String, record: Record?): ByteArray {
     } else {
         baos.write(size.toByteArray())
         baos.write(keyBytes)
-        baos.write(record.size.toByteArray())
         baos.write(record)
     }
     return baos.toByteArray()
-}
-
-/**
- * Decode the next KV pair from the stream. If the pair represents a deletion, the second value will be null.
- */
-fun InputStream.decode(): Pair<String, Record?> {
-    val size = readNBytes(4).toInt()
-    val isDelete = size < 0
-    val keyLength = size and Int.MAX_VALUE
-    val key = readNBytes(keyLength).decodeToString()
-
-    if (isDelete)
-        return key to null
-    val valSize = readNBytes(4).toInt()
-    return key to readNBytes(valSize)
 }
 
 class ArraysInputStream(private val arrays: List<ByteArray>) : InputStream() {
@@ -81,6 +65,21 @@ class ArraysInputStream(private val arrays: List<ByteArray>) : InputStream() {
         bytesRead++
         return byte.toInt()
     }
+
+    /**
+     * Decode the next KV pair from the stream. If the pair represents a deletion, the second value will be null.
+     */
+    fun decode(): Pair<String, Record?> {
+        val size = readNBytes(4).toInt()
+        val isDelete = size < 0
+        val keyLength = size and Int.MAX_VALUE
+        val key = readNBytes(keyLength).decodeToString()
+
+        if (isDelete)
+            return key to null
+        return key to readNBytes(totalBytes - bytesRead)
+    }
+
 
     override fun readNBytes(len: Int): ByteArray {
         val result = ByteArray(len)
@@ -124,7 +123,3 @@ class ArraysInputStream(private val arrays: List<ByteArray>) : InputStream() {
         return totalBytes - bytesRead
     }
 }
-
-class SerializationException : RuntimeException()
-
-class DeserializationException : RuntimeException()

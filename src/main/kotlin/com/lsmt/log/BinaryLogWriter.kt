@@ -9,12 +9,16 @@ import kotlin.math.min
 
 /**
  * Implements a binary protocol based on the one used by LevelDB.
+ *
+ * The file is formatted as follows:
+ *
  */
-class BinaryLogWriter(
-    private val os: OutputStream
+open class BinaryLogWriter(
+    protected val os: OutputStream
 ) : LogWriter {
-    private val crc = CRC32C()
-    private var totalBytes: Int = 0
+    protected val crc = CRC32C()
+    protected var totalBytes: Int = 0
+    protected var closed = false
 
     override fun append(key: String, value: Record?): Int {
         // A header is always 9 bytes.
@@ -22,21 +26,28 @@ class BinaryLogWriter(
         return appendBytes(data)
     }
 
-    fun appendBytes(data: ByteArray): Int {
+    private fun appendBytes(data: ByteArray): Int {
         val startingBytes = totalBytes
+        // The number of data bytes to write during the next call to write()
         var length: Int
+        // The checksum
         var check: Int
+        // The record type
         var type: Int
+        // The offset in the data array. We write the bytes data[offset:offset + length]
         var offset = 0
 
         length = data.size
         var remainingBytes = writeTrailer()
-        if (length <= remainingBytes + 9) {
+
+        if (length <= remainingBytes - 9) {
+            // If we can fit the full data array and the header in the current block, do it.
             type = FULL
             check = crc.checksum(type, data)
             write(check, length, type, data, offset)
         } else {
-            length = remainingBytes
+            // The data and header won't fit in the current block. Write the 9 byte header, and a portion of the data.
+            length = remainingBytes - 9
             type = FIRST
             check = crc.checksum(type, data, offset, length)
             write(check, length, type, data, offset)
@@ -65,9 +76,14 @@ class BinaryLogWriter(
 
     override fun size(): Int = totalBytes
 
+    override fun totalBytes(): Int = totalBytes
+
     override fun close() {
-        os.flush()
-        os.close()
+        if (!closed) {
+            os.flush()
+            os.close()
+            closed = true
+        }
     }
 
     private fun write(check: Int, length: Int, type: Int, data: ByteArray, offset: Int): Int {
@@ -89,7 +105,7 @@ class BinaryLogWriter(
     private fun writeTrailer(): Int {
         val remainingBytes = BLOCK_SIZE - (totalBytes % BLOCK_SIZE)
         if (remainingBytes < 9) {
-            repeat((1..remainingBytes).count()) {
+            repeat(remainingBytes) {
                 os.write(0)
                 totalBytes++
             }

@@ -60,5 +60,9 @@ test {
     testLogging {
         events "passed", "skipped", "failed"
     }
+
+    jvmArgs = [
+            "-XX:MaxDirectMemorySize=512m", "-Xmx512m", "-XX:-HeapDumpOnOutOfMemoryError", "-XX:HeapDumpPath=/Users/will/work/lsm/heap.hprof"
+    ]
 }
 

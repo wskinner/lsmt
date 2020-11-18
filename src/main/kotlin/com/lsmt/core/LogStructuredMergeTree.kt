@@ -47,8 +47,8 @@ class StandardLogStructuredMergeTree(
         memTable.put(key, value)
 
         if (writeAheadLog.size() > config.maxWalSize) {
-            val id = writeAheadLog.rotate()
-            ssTable.addTableAsync(memTable, id)
+            val logHandle = writeAheadLog.rotate()
+            ssTable.addTableAsync(memTable, logHandle.id)
             memTable = memTableFactory()
         }
 

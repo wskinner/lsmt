@@ -1,6 +1,5 @@
 package com.lsmt.table
 
-import com.lsmt.core.Entry
 import com.lsmt.core.Level
 import com.lsmt.core.LevelIndex
 import com.lsmt.log.BinaryLogReader
@@ -12,7 +11,7 @@ import java.util.*
  * log layer.
  */
 class BinaryManifestReader(
-    private val logReader: BinaryLogReader<Entry>
+    private val logReader: BinaryLogReader
 ) : ManifestReader {
     override fun read(): LevelIndex {
         val result = TreeMap<Int, Level>()

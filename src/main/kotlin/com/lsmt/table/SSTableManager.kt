@@ -4,6 +4,7 @@ import com.lsmt.Config
 import com.lsmt.core.Record
 import mu.KotlinLogging
 import java.io.File
+import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -38,15 +39,6 @@ interface SSTableManager : AutoCloseable {
 }
 
 /**
- * Handles logic for reading SSTables.
- */
-interface SSTableReader {
-    fun read(table: SSTableMetadata, key: String): Record?
-
-    fun readAll(table: SSTableMetadata): SortedMap<String, Record?>
-}
-
-/**
  * SSTable files are arranged in levels. Tables in level zero, the "young" level can have overlapping keys. Tables in
  * other levels must contain no overlapping keys. I.e. for levels greater than zero, a key will be within the key range
  * of at most one table. Since records gradually move from the lower to the higher levels, this implies that for a given
@@ -57,7 +49,6 @@ class StandardSSTableManager(
     // Directory where the SSTable files will be stored
     rootDirectory: File,
     private val manifest: ManifestManager,
-    tableReader: SSTableReader,
     private val config: Config,
     private val tableController: SSTableController
 ) : SSTableManager {
@@ -69,7 +60,7 @@ class StandardSSTableManager(
             Runtime.getRuntime().availableProcessors()
         ) { Thread(it, nextThreadName("sstable")) }
 
-    val activeTableCreationTasks = AtomicInteger()
+    private val activeTableCreationTasks = AtomicInteger()
 
     init {
         if (!rootDirectory.exists()) {

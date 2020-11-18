@@ -8,6 +8,7 @@ typealias Record = ByteArray
 typealias Entry = Pair<String, Record?>
 typealias LevelIndex = SortedMap<Int, Level>
 typealias NumberedFile = Pair<Long, Path>
+typealias BlockIndex = TreeMap<String, BlockHandle>
 
 class KeyRange(override val start: String, override val endInclusive: String) : ClosedRange<String>
 
@@ -20,3 +21,8 @@ class TableEntry(val entry: Entry, val tableId: Int) : Comparable<TableEntry> {
         return strCmp
     }
 }
+
+data class BlockHandle(
+    val offset: Int,
+    val length: Int
+)

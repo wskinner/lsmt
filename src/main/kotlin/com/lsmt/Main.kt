@@ -2,10 +2,7 @@ package com.lsmt
 
 import com.lsmt.core.StandardLevel
 import com.lsmt.core.StandardLogStructuredMergeTree
-import com.lsmt.log.BinaryLogManager
-import com.lsmt.log.BinaryLogWriter
-import com.lsmt.log.SynchronizedFileGenerator
-import com.lsmt.log.createLogReader
+import com.lsmt.log.*
 import com.lsmt.table.*
 import java.util.*
 
@@ -40,10 +37,7 @@ fun treeFactory(): StandardLogStructuredMergeTree {
         config.maxSstableSize,
         manifestManager,
         TableCache(
-            BinarySSTableReader(
-                sstableDir,
-                config.sstablePrefix
-            ),
+            BinarySSTableReader(),
             config.maxCacheSizeMB,
             sstableFileGenerator = sstableFileGenerator,
             walFileGenerator = walFileGenerator
@@ -61,14 +55,10 @@ fun treeFactory(): StandardLogStructuredMergeTree {
         StandardSSTableManager(
             sstableDir,
             manifestManager,
-            BinarySSTableReader(
-                sstableDir,
-                config.sstablePrefix
-            ),
             config,
             tableController
         ),
-        BinaryLogManager(walFileGenerator),
+        createWalManager(walFileGenerator),
         config
     ).apply { start() }
 }

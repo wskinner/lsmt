@@ -1,22 +1,23 @@
 package com.lsmt.log
 
-import com.lsmt.core.Entry
 import com.lsmt.core.Record
 import com.lsmt.log.BinaryLogWriter.Companion.BLOCK_SIZE
+import com.lsmt.table.SSTableWriter
 import mu.KotlinLogging
+import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 
-interface LogManager : LogWriter {
-    // Start a new log file. Return the ID of the old log file.
-    fun rotate(): Long
+data class LogHandle(val id: Long, val totalBytes: Int)
 
-    // Read the current log file and return its contents merged and sorted.
-    fun read(): List<Entry>
+interface LogManager : LogWriter {
+    // Start a new log file. Return the ID of the old log file and the number of .
+    fun rotate(): LogHandle
 }
 
 data class Header(val crc: Int, val length: Int, val type: Int)
+
 
 /**
  *
@@ -30,7 +31,8 @@ data class Header(val crc: Int, val length: Int, val type: Int)
  * data: uint8[length]
  */
 class BinaryLogManager(
-    private val fileGenerator: FileGenerator
+    private val fileGenerator: FileGenerator,
+    private inline val fileWriterFactory: (OutputStream) -> LogWriter
 ) : LogManager {
     var id: Long
         private set
@@ -63,22 +65,24 @@ class BinaryLogManager(
 
     override fun size(): Int = writer.size()
 
-    override fun rotate(): Long {
+    override fun rotate(): LogHandle {
         val oldId = id
         close()
+        val totalBytes = writer.totalBytes()
         val numberedFile = fileGenerator.next()
         id = numberedFile.first
         filePath = numberedFile.second
         writer = createWriter(filePath)
-        return oldId
+
+        return LogHandle(oldId, totalBytes)
     }
 
-    override fun read(): List<Entry> = BinaryLogReader(filePath) { it.decode() }.readAll()
+    override fun totalBytes(): Int = writer.totalBytes()
 
     private fun createWriter(path: Path): LogWriter {
         val os = Files.newOutputStream(path, StandardOpenOption.CREATE_NEW)
             .buffered(BLOCK_SIZE)
-        return BinaryLogWriter(os)
+        return fileWriterFactory(os)
     }
 
     companion object {
@@ -86,5 +90,11 @@ class BinaryLogManager(
     }
 }
 
-fun createLogReader(path: Path): BinaryLogReader<Entry> = BinaryLogReader(path) { it.decode() }
+fun createLogReader(path: Path): BinaryLogReader = BinaryLogReader(path)
+
+fun createWalManager(fileGenerator: FileGenerator): BinaryLogManager =
+    BinaryLogManager(fileGenerator) { BinaryLogWriter(it) }
+
+fun createSSTableManager(fileGenerator: FileGenerator): BinaryLogManager =
+    BinaryLogManager(fileGenerator) { SSTableWriter(it) }
 

@@ -90,7 +90,9 @@ class StandardLevel(
             return map.values.filter { it.keyRange.contains(key) }
 
         try {
-            val table = map.floorEntry(TableKey(key, 0))?.value
+            // Long.MAX_VALUE is used to make sure this key sorts lower than all other keys in the map with the same
+            // string portion.
+            val table = map.floorEntry(TableKey(key, Long.MAX_VALUE))?.value
             if (table != null && table.keyRange.contains(key)) {
                 return listOf(table)
             }
