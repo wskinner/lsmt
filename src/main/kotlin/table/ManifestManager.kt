@@ -25,6 +25,8 @@ interface ManifestManager {
 
     fun level(level: Int): Level = levels().getOrDefault(level, emptyLevel())
 
+    fun getOrPut(index: Int): Level
+
     fun addTable(table: SSTableMetadata)
 
     fun removeTable(table: SSTableMetadata)
@@ -84,14 +86,23 @@ class StandardManifestManager(
 
     override fun levels(): LevelIndex = allTables
 
-    override fun addTable(table: SSTableMetadata): Unit = synchronized(this) {
+    override fun getOrPut(index: Int): Level = synchronized(this) {
+        if (!allTables.containsKey(index)) {
+            allTables[index] = levelFactory()
+        }
+        return level(index)
+    }
+
+    override fun addTable(table: SSTableMetadata): Unit {
         writer.addTable(table)
 
-        if (!allTables.containsKey(table.level)) {
-            allTables[table.level] = levelFactory()
-        }
+        synchronized(this) {
+            if (!allTables.containsKey(table.level)) {
+                allTables[table.level] = levelFactory()
+            }
 
-        allTables[table.level]?.add(table)
+            allTables[table.level]?.add(table)
+        }
     }
 
     override fun removeTable(table: SSTableMetadata): Unit = synchronized(this) {

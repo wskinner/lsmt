@@ -3,7 +3,6 @@ import core.StandardLevel
 import core.StandardLogStructuredMergeTree
 import core.maxLevelSize
 import log.BinaryWriteAheadLogManager
-import log.BinaryWriteAheadLogReader
 import log.BinaryWriteAheadLogWriter
 import log.createLogReader
 import table.*
@@ -38,9 +37,10 @@ fun parseConfig(): Config {
 }
 
 fun main() {
-    val manifestFile = File("./build/manifest/manifest.log")
-    val sstableDir = File("./build/sstable")
-    val walDir = File("./build/log")
+    File("./build/manifest").apply { mkdirs() }
+    val manifestFile = File("./build/manifest/manifest.log").apply { createNewFile() }
+    val sstableDir = File("./build/sstable").apply { mkdirs() }
+    val walDir = File("./build/log").apply { mkdirs() }
 
     val config = parseConfig()
 
@@ -76,9 +76,8 @@ fun main() {
             config,
             tableController,
             StandardCompactor(
-                manifestManager.levels(),
+                manifestManager,
                 { maxLevelSize(it) },
-                { StandardLevel() },
                 tableController
             )
         ),
@@ -94,6 +93,8 @@ fun main() {
             test(5, 100_000, tree)
         }.join()
     }
+
+    println("Run complete.")
 }
 
 //    print("Reads")

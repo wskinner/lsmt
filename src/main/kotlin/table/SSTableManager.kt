@@ -4,6 +4,7 @@ import Compactor
 import Config
 import core.Record
 import log.createLogReader
+import mu.KotlinLogging
 import java.io.File
 import java.nio.file.Path
 import java.util.concurrent.ExecutorService
@@ -58,11 +59,16 @@ class StandardSSTableManager(
     private val tableController: SSTableController,
     private val compactor: Compactor
 ) : SSTableManager {
-    private val threadPool: ExecutorService =
+
+    // This pool is responsible for making new SSTable files from log files. This task is parallelizable with no
+    // contention. Because it is IO bound, it is safe to create many threads here.
+    private val tableCreationPool: ExecutorService =
         Executors.newFixedThreadPool(
             Runtime.getRuntime().availableProcessors()
         ) { Thread(it, nextThreadName("sstable")) }
 
+    // This pool handles compaction of tables. This task is inherently contentious. In theory, we can lock at the level
+    // of the individual table. I'm not yet sure of the best way to handle this.
     private val compactionPool =
         Executors.newSingleThreadScheduledExecutor { Thread(it, nextThreadName("compaction")) }
 
@@ -87,32 +93,45 @@ class StandardSSTableManager(
         }
     }
 
-    private fun mergeYoung() {
-        if (manifest.level(0).size() > config.maxYoungTables) {
-            val overlappingL1Tables = manifest.level(0)
+    private fun mergeYoung() = synchronized(manifest) {
+        val level0 = manifest.level(0)
+        if (level0.size() > config.maxYoungTables) {
+            val overlappingL1Tables = level0
                 .flatMap { manifest.level(1).getRange(it.keyRange) }
-            val newTables = tableController.merge(manifest.level(0).asSequence() + overlappingL1Tables, 1)
-            manifest.level(0).clear()
-            for (table in overlappingL1Tables) {
-                manifest.level(1).remove(table)
-            }
-            for (table in newTables) {
-                manifest.level(1).add(table)
+            val newTables = tableController.merge(level0.asSequence() + overlappingL1Tables, 1)
+            if (newTables != null) {
+                for (table in level0) {
+                    manifest.removeTable(table)
+                }
+                for (table in overlappingL1Tables) {
+                    manifest.removeTable(table)
+                }
+                for (table in newTables) {
+                    manifest.addTable(table)
+                }
             }
         }
     }
 
     override fun addTableAsync(wal: Path) {
-        threadPool.submit {
+        logger.info("Adding task for table ${wal.fileName}")
+        tableCreationPool.submit {
             addTableFromLog(wal)
         }
     }
 
     override fun close() {
-        println("Shutting down SSTableManager")
-        threadPool.awaitTermination(1, TimeUnit.MINUTES)
-        compactionPool.awaitTermination(1, TimeUnit.MINUTES)
-        println("Down shutting down SSTableManager")
+        logger.info("Shutting down SSTableManager")
+        logger.info("Shutting down compaction pool")
+        compactionPool.shutdown()
+        logger.info("Compaction pool shutdown complete")
+
+        logger.info("Awaiting thread pool termination")
+        tableCreationPool.shutdown()
+        tableCreationPool.awaitTermination(1, TimeUnit.MINUTES)
+        logger.info("Thread pool termination complete")
+
+        logger.info("Done shutting down SSTableManager")
     }
 
     /**
@@ -152,6 +171,8 @@ class StandardSSTableManager(
     }
 
     companion object {
+        private val logger = KotlinLogging.logger {}
+
         private val nextThread = mutableMapOf<String, AtomicInteger>()
 
         fun nextThreadName(prefix: String): String {

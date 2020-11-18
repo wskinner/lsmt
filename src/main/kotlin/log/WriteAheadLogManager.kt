@@ -8,6 +8,7 @@ import counting
 import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
 import log.BinaryWriteAheadLogWriter.Companion.FULL
 import log.BinaryWriteAheadLogWriter.Companion.LAST
+import mu.KotlinLogging
 import toByteArray
 import toInt
 import java.io.File
@@ -66,7 +67,7 @@ class BinaryWriteAheadLogManager(
      * the remaining bytes must be zeroes.
      */
     override fun close() {
-        println("Shutting down WAL")
+        logger.info("Shutting down WAL")
         writer.close()
     }
 
@@ -93,6 +94,10 @@ class BinaryWriteAheadLogManager(
         val os = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
             .buffered(BLOCK_SIZE)
         return BinaryWriteAheadLogWriter(os, path)
+    }
+
+    companion object {
+        val logger = KotlinLogging.logger { }
     }
 }
 
@@ -243,7 +248,7 @@ class BinaryWriteAheadLogReader<T>(
     private fun CountingInputStream.readData(header: Header): ByteArray {
         val data = readNBytes(header.length)
         if (crc.checksum(header.type, data) != header.crc) {
-            println("Corrupt record")
+            logger.error("Corrupt record")
         }
         return data
     }
@@ -264,6 +269,10 @@ class BinaryWriteAheadLogReader<T>(
         } while (header.type != LAST)
 
         return decoder(ArraysInputStream(allData))
+    }
+
+    companion object {
+        val logger = KotlinLogging.logger { }
     }
 
 }

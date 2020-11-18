@@ -1,5 +1,6 @@
 import core.Level
 import core.LevelIndex
+import table.ManifestManager
 import table.SSTableController
 
 interface Compactor : Runnable {
@@ -29,14 +30,13 @@ interface Compactor : Runnable {
  * data from level-(L+2).
  */
 class StandardCompactor(
-    private val levels: LevelIndex,
+    private val manifest: ManifestManager,
     private val levelSizeLimit: (Int) -> Int,
-    private val levelFactory: () -> Level,
     private val ssTableController: SSTableController
 ) : Compactor {
 
     override fun run() {
-        for ((index, level) in levels.filterNot { it.key == 0 }) {
+        for ((index, level) in manifest.levels().filterNot { it.key == 0 }) {
             if (level.size() > levelSizeLimit(index)) {
                 doCompaction(index)
             }
@@ -46,9 +46,9 @@ class StandardCompactor(
     /**
      * Compact level i  into level i + 1. Level i is guaranteed to exist, but level i + 1 may not.
      */
-    private fun doCompaction(levelI: Int) {
-        val l1 = levels[levelI]!!
-        val l2 = levels.getOrDefault(levelI, levelFactory())
+    private fun doCompaction(levelI: Int) = synchronized(manifest) {
+        val l1 = manifest.level(levelI)
+        val l2 = manifest.getOrPut(levelI + 1)
 
         while (l1.size() > levelSizeLimit(levelI)) {
             val next = l1.nextCompactionCandidate()

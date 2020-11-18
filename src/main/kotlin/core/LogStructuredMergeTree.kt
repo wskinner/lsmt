@@ -2,6 +2,7 @@ package core
 
 import Config
 import log.BinaryWriteAheadLogManager
+import mu.KotlinLogging
 import table.MemTable
 import table.SSTableManager
 
@@ -24,7 +25,10 @@ class StandardLogStructuredMergeTree(
 
     private var memTable = memTableFactory()
 
-    override fun put(key: String, value: Record) = synchronized(this) {
+    /**
+     * Add a key, value pair to the database. Not thread safe.
+     */
+    override fun put(key: String, value: Record) {
         writeAheadLog.append(key, value)
         memTable.put(key, value)
 
@@ -43,9 +47,14 @@ class StandardLogStructuredMergeTree(
     override fun start() {}
 
     override fun close() {
-        println("Shutting down LSMT")
+        logger.info("Shutting down LSMT")
         ssTable.addTableAsync(writeAheadLog.rotate())
         writeAheadLog.close()
         ssTable.close()
+        logger.info("Done shutting down LSMT")
+    }
+
+    companion object {
+        val logger = KotlinLogging.logger { }
     }
 }
