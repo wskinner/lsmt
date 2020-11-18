@@ -145,29 +145,6 @@ class SSTableManagerSpec : StringSpec({
         }
     }
 
-    "merge level 0 to level 1 shuffled" {
-        val manifestDir = createTempDir().apply { deleteOnExit() }
-        val manifestFile = createTempFile(directory = manifestDir).apply { deleteOnExit() }
-        val manifest = StandardManifestManager(
-            BinaryManifestWriter(
-                BinaryLogWriter(manifestFile.outputStream())
-            ),
-            BinaryManifestReader(
-                createLogReader(manifestFile.toPath())
-            ),
-            levelFactory = { StandardLevel(it) }
-        )
-        val tree = tree(manifest)
-        val entries = fillTree(tree, shuffled = true)
-        tree.close()
-        (manifest.level(0).size()) shouldBe 3
-        (manifest.level(1).size()) shouldBe 10
-
-        for (entry in entries) {
-            tree.get(entry.first) shouldBe entry.second
-        }
-    }
-
     "no exception" {
         val random = Random(0)
 
