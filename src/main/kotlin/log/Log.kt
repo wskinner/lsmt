@@ -47,12 +47,16 @@ class BinaryWriteAheadLogManager(
 
         if (appendLength <= remainingBytes) {
             os.write(checksum(full, record).toByteArray())
+            os.write(appendLength.toByteArray())
+            os.write(full)
             os.write(record)
             return 0L
         } else {
             var offset = 0
             var length = remainingBytes - 9
             os.write(checksum(first, record, offset, length).toByteArray())
+            os.write(length.toByteArray())
+            os.write(first)
             os.write(record, offset, length)
 
             do {
@@ -62,9 +66,13 @@ class BinaryWriteAheadLogManager(
 
                 if (record.size > offset + length) {
                     os.write(checksum(middle, record, offset, length).toByteArray())
+                    os.write(length.toByteArray())
+                    os.write(middle)
                     os.write(record, offset, length)
                 } else {
                     os.write(checksum(last, record, offset, length).toByteArray())
+                    os.write(length.toByteArray())
+                    os.write(last)
                     os.write(record, offset, length)
                 }
             } while (record.size > offset + length)
@@ -89,12 +97,12 @@ class BinaryWriteAheadLogManager(
         TODO("Not yet implemented")
     }
 
-    override fun start() {
-        os = Files.newOutputStream(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+    override fun close() {
+        os.close()
     }
 
-    override fun stop() {
-        os.close()
+    override fun start() {
+        os = Files.newOutputStream(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
     }
 
     private fun checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = 0): Int {
@@ -105,7 +113,7 @@ class BinaryWriteAheadLogManager(
     }
 
     companion object {
-        const val blockSize = 2 shl 15
+        const val blockSize = 1 shl 15
         const val full = 1
         const val first = 2
         const val middle = 3

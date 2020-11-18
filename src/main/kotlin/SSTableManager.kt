@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 
 // Keeps track of the SSTable files
-interface SSTableManager : LSMRunnable {
+interface SSTableManager : AutoCloseable {
 
     // Get a value from the on-disk storage.
     fun get(key: String): SortedMap<String, Any>?
@@ -61,10 +61,7 @@ class StandardSSTableManager(
         }
     }
 
-    override fun start() {
-    }
-
-    override fun stop() {
+    override fun close() {
         threadPool.shutdown()
     }
 

@@ -38,7 +38,7 @@ import java.util.*
 fun encode(key: String, map: SortedMap<String, Any>): ByteArray {
     val baos = ByteArrayOutputStream()
     val keyBytes = key.toByteArray()
-    baos.write(keyBytes.size)
+    baos.write(keyBytes.size.toByteArray())
     baos.write(keyBytes)
 
     map.forEach { entry ->

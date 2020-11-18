@@ -7,12 +7,14 @@ import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.util.*
 
-interface WriteAheadLogManager : LSMRunnable {
+interface WriteAheadLogManager : AutoCloseable {
     // Append a record to the log.
     fun append(key: String, value: SortedMap<String, Any>): Long
 
     // Restore the memtable from the log
     fun restore(): MemTable
+
+    fun start()
 }
 
 /**
@@ -43,6 +45,10 @@ class StandardWriteAheadLogManager(
         TODO("Not yet implemented")
     }
 
+    override fun close() {
+        bos.close()
+    }
+
     override fun start() {
         sequence = if (!file.exists()) {
             file.createNewFile()
@@ -52,10 +58,6 @@ class StandardWriteAheadLogManager(
         }
 
         bos = Files.newOutputStream(file.toPath(), StandardOpenOption.APPEND).buffered()
-    }
-
-    override fun stop() {
-        bos.close()
     }
 
     // Seek to the end of the file, then backwards until we find the last line separator. Then read the sequence number,

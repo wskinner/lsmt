@@ -1,6 +1,8 @@
 import java.util.*
 
-interface LogStructuredMergeTree : LSMRunnable {
+interface LogStructuredMergeTree : AutoCloseable {
+    fun start()
+
     fun put(key: String, value: SortedMap<String, Any>)
 
     fun get(key: String): SortedMap<String, Any>?
@@ -42,12 +44,11 @@ class StandardLogStructuredMergeTree(
 
     override fun start() {
         writeAheadLog.start()
-        ssTable.start()
     }
 
-    override fun stop() {
-        writeAheadLog.stop()
-        ssTable.stop()
+    override fun close() {
+        writeAheadLog.close()
+        ssTable.close()
     }
 
     companion object {

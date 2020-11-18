@@ -44,14 +44,14 @@ fun main() {
         )
     ).apply { start() }
 
-    thread(start = true) {
-        test(5, 100_0000, tree)
-    }.join()
+    tree.use {
+        thread(start = true) {
+            test(5, 100_0000, tree)
+        }.join()
+    }
 
 //    print("Reads")
 //    for (i in 1..100000) {
 //        tree.get("person$i")
 //    }
-
-    tree.stop()
 }

@@ -43,10 +43,7 @@ public class Bytes {
     }
 
     public static float bytesToFloat(final byte[] b) {
-        return Float.intBitsToFloat(((int) b[3] & 0xff) << 24
-                | ((int) b[2] & 0xff) << 16
-                | ((int) b[1] & 0xff) << 8
-                | ((int) b[0] & 0xff));
+        return Float.intBitsToFloat(bytesToInt(b));
     }
 
     public static byte[] doubleToBytes(double it) {
@@ -54,9 +51,6 @@ public class Bytes {
     }
 
     public static double bytesToDouble(final byte[] b) {
-        return Double.longBitsToDouble(((int) b[3] & 0xff) << 24
-                | ((int) b[2] & 0xff) << 16
-                | ((int) b[1] & 0xff) << 8
-                | ((int) b[0] & 0xff));
+        return Double.longBitsToDouble(bytesToLong(b));
     }
 }
