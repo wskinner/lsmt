@@ -3,6 +3,7 @@ package table
 import Compactor
 import Config
 import core.Record
+import core.makeFile
 import log.createLogReader
 import mu.KotlinLogging
 import java.io.File
@@ -31,9 +32,7 @@ interface SSTableManager : AutoCloseable {
     /**
      * Asynchronously create a new table from the log file.
      */
-    fun addTableAsync(wal: Path) {
-
-    }
+    fun addTableAsync(wal: Path)
 }
 
 /**
@@ -52,12 +51,12 @@ interface SSTableReader {
  */
 class StandardSSTableManager(
     // Directory where the SSTable files will be stored
-    private val rootDirectory: File,
+    rootDirectory: File,
     private val manifest: ManifestManager,
     private val tableReader: SSTableReader,
     private val config: Config,
     private val tableController: SSTableController,
-    private val compactor: Compactor
+    compactor: Compactor
 ) : SSTableManager {
 
     // This pool is responsible for making new SSTable files from log files. This task is parallelizable with no
@@ -96,20 +95,7 @@ class StandardSSTableManager(
     private fun mergeYoung() = synchronized(manifest) {
         val level0 = manifest.level(0)
         if (level0.size() > config.maxYoungTables) {
-            val overlappingL1Tables = level0
-                .flatMap { manifest.level(1).getRange(it.keyRange) }
-            val newTables = tableController.merge(level0.asSequence() + overlappingL1Tables, 1)
-            if (newTables != null) {
-                for (table in level0) {
-                    manifest.removeTable(table)
-                }
-                for (table in overlappingL1Tables) {
-                    manifest.removeTable(table)
-                }
-                for (table in newTables) {
-                    manifest.addTable(table)
-                }
-            }
+            tableController.merge(0)
         }
     }
 
@@ -124,13 +110,15 @@ class StandardSSTableManager(
         logger.info("Shutting down SSTableManager")
         logger.info("Shutting down compaction pool")
         compactionPool.shutdown()
-        logger.info("Compaction pool shutdown complete")
+        compactionPool.awaitTermination(1, TimeUnit.MINUTES)
+        logger.info("Compaction pool termination complete")
 
         logger.info("Awaiting thread pool termination")
         tableCreationPool.shutdown()
         tableCreationPool.awaitTermination(1, TimeUnit.MINUTES)
         logger.info("Thread pool termination complete")
 
+        manifest.close()
         logger.info("Done shutting down SSTableManager")
     }
 
@@ -187,7 +175,7 @@ class BinarySSTableReader(
     private val prefix: String = Config.sstablePrefix
 ) : SSTableReader {
     override fun read(table: SSTableMetadata, key: String): Record? {
-        val file = tableFile(rootDirectory, prefix, table.id)
+        val file = makeFile(rootDirectory, prefix, table.id)
         val reader = createLogReader(file)
 
         return reader.read()

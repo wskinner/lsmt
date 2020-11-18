@@ -3,6 +3,7 @@ package table
 import core.*
 import log.BinaryWriteAheadLogReader
 import log.WriteAheadLogWriter
+import mu.KotlinLogging
 import table.StandardManifestManager.Companion.add
 import table.StandardManifestManager.Companion.remove
 import toSSTableMetadata
@@ -19,7 +20,7 @@ import java.util.*
  *
  * Each of these operations can be represented as a series of removals and additions of tables.
  */
-interface ManifestManager {
+interface ManifestManager : AutoCloseable {
     // Map from level number to Level
     fun levels(): LevelIndex
 
@@ -32,7 +33,7 @@ interface ManifestManager {
     fun removeTable(table: SSTableMetadata)
 }
 
-interface ManifestWriter {
+interface ManifestWriter : AutoCloseable {
     fun addTable(table: SSTableMetadata)
 
     fun removeTable(table: SSTableMetadata)
@@ -94,6 +95,7 @@ class StandardManifestManager(
     }
 
     override fun addTable(table: SSTableMetadata): Unit {
+        logger.info { "addTable() level=${table.level} id=${table.id}"}
         writer.addTable(table)
 
         synchronized(this) {
@@ -106,15 +108,29 @@ class StandardManifestManager(
     }
 
     override fun removeTable(table: SSTableMetadata): Unit = synchronized(this) {
-        allTables[table.level]?.remove(table)
+        logger.info { "removeTable() level=${table.level} id=${table.id}"}
+        try {
+            allTables[table.level]?.remove(table)
+        } catch (t: Throwable) {
+            logger.error(t) { "Error in removeTable()" }
+        }
+    }
+
+    override fun close() {
+        writer.close()
     }
 
     companion object {
+        val logger = KotlinLogging.logger {}
         const val add = "1"
         const val remove = "2"
     }
 }
 
+/**
+ * TODO Instead of implementing deletes at the manifest layer, use the delete functionality that is now build into the
+ * log layer.
+ */
 class BinaryManifestReader(
     private val logReader: BinaryWriteAheadLogReader<Entry>
 ) : ManifestReader {
@@ -122,7 +138,7 @@ class BinaryManifestReader(
         val result = TreeMap<Int, Level>()
 
         logReader.read().forEach { (type, record) ->
-            val tableMeta = record.toSSTableMetadata()!!
+            val tableMeta = record!!.toSSTableMetadata()!!
             when (type) {
                 add -> result[tableMeta.level]?.add(tableMeta)
                 remove -> result[tableMeta.level]?.remove(tableMeta)
@@ -142,6 +158,10 @@ class BinaryManifestWriter(
 
     override fun removeTable(table: SSTableMetadata) {
         logWriter.append(remove, table.toRecord())
+    }
+
+    override fun close() {
+        logWriter.close()
     }
 
 }

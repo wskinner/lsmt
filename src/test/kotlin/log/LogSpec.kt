@@ -1,8 +1,10 @@
 package log
 
 import io.kotlintest.shouldBe
+import io.kotlintest.shouldNotBe
 import io.kotlintest.specs.StringSpec
 import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
+import merge
 import java.nio.file.Files
 import java.util.*
 
@@ -20,10 +22,11 @@ class LogSpec : StringSpec({
             wal.append(key, value)
         }
 
-        val deserialized = wal.read()
+        val deserialized = wal.read().merge()
         deserialized.size shouldBe 1
-        deserialized[0].first shouldBe key
-        val deserializedValue = deserialized[0].second
+
+        val deserializedValue = deserialized["foobar"]!!
+        deserializedValue shouldNotBe null
         deserializedValue["key1"] shouldBe 1
         deserializedValue["key2"] shouldBe 1.234
         deserializedValue["key3"] shouldBe "value"
@@ -47,10 +50,11 @@ class LogSpec : StringSpec({
             wal.append(key, value)
         }
 
-        val deserialized = wal.read()
+        val deserialized = wal.read().merge()
         deserialized.size shouldBe 1
-        deserialized[0].first shouldBe key
-        val deserializedValue = deserialized[0].second
+
+        val deserializedValue = deserialized["foobar"]!!
+        deserializedValue shouldNotBe null
         deserializedValue["key1"] shouldBe 1
         deserializedValue["key2"] shouldBe 1.234
         deserializedValue["key3"] shouldBe value3
@@ -65,11 +69,9 @@ class LogSpec : StringSpec({
             wal.append(key, value)
         }
 
-        val deserialized = wal.read()
+        val deserialized = wal.read().merge()
         deserialized.size shouldBe 1
-        deserialized[0].first shouldBe key
-        val deserializedValue = deserialized[0].second
-        deserializedValue.size shouldBe 0
+        deserialized["foobar"]!!.size shouldBe 0
     }
 
     "log serialization and deserialization of several records" {
@@ -153,5 +155,74 @@ class LogSpec : StringSpec({
         } catch (t: Throwable) {
             t.printStackTrace()
         }
+    }
+
+    "deletion of previously inserted value" {
+        val file = createTempFile()
+        val writer = BinaryWriteAheadLogWriter(
+            Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
+        )
+        val reader = BinaryWriteAheadLogReader(file.toPath()) { it.decode() }
+
+        val entries = listOf(
+            "0" to sortedMapOf(
+                "0" to 0,
+                "1" to "1",
+                "2" to 2.0
+            ),
+            "1" to sortedMapOf(
+                "0" to 0,
+                "1" to "1",
+                "2" to 2.0
+            )
+        )
+
+        val keyToDelete = entries[0].first
+        val keyToKeep = entries[1].first
+
+        writer.use {
+            for (entry in entries) {
+                writer.append(entry.first, entry.second)
+            }
+
+            writer.append(keyToDelete, null)
+        }
+
+        val result = reader.read().merge()
+        result.size shouldBe 1
+        result.containsKey(keyToDelete) shouldBe false
+        result.containsKey(keyToKeep) shouldBe true
+    }
+
+    "deletion of nonexistanat value" {
+        val file = createTempFile()
+        val writer = BinaryWriteAheadLogWriter(
+            Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
+        )
+        val reader = BinaryWriteAheadLogReader(file.toPath()) { it.decode() }
+
+        val entries = listOf(
+            "0" to sortedMapOf(
+                "0" to 0,
+                "1" to "1",
+                "2" to 2.0
+            )
+        )
+
+        val keyToDelete = "1"
+        val keyToKeep = entries[0].first
+
+        writer.use {
+            for (entry in entries) {
+                writer.append(entry.first, entry.second)
+            }
+
+            writer.append(keyToDelete, null)
+        }
+
+        val result = reader.read().merge()
+        result.size shouldBe 1
+        result.containsKey(keyToDelete) shouldBe false
+        result.containsKey(keyToKeep) shouldBe true
     }
 })

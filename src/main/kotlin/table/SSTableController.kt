@@ -1,23 +1,22 @@
 package table
 
-import core.Entry
-import core.NumberedFile
+import core.Record
 import core.entries
-import core.nextFile
-import log.BinaryWriteAheadLogWriter
+import log.BinaryWriteAheadLogManager
+import log.FileGenerator
+import log.SynchronizedFileGenerator
 import log.createLogReader
+import merge
 import mu.KotlinLogging
 import java.io.File
-import java.nio.file.Files
 import java.nio.file.Path
 
 interface SSTableController {
 
     /**
-     * Merge a single table from level i and 0 or more tables from level i + 1 into level i + 1.
-     * Returns: list of new tables. All the input tables are no longer used and should be removed from the index.
+     * Merge one or more tables from level i and 0 or more tables from level i + 1 into level i + 1.
      */
-    fun merge(tables: Sequence<SSTableMetadata>, targetLevel: Int): List<SSTableMetadata>?
+    fun merge(level: Int)
 
     /**
      * Create a new table file from the log and return the metadata. The caller is responsible for updating the index.
@@ -28,76 +27,92 @@ interface SSTableController {
 class StandardSSTableController(
     private val rootDirectory: File,
     private val tablePrefix: String,
-    private val maxTableSize: Int
+    private val maxTableSize: Int,
+    private val manifest: ManifestManager,
+    private val fileGenerator: FileGenerator = SynchronizedFileGenerator(rootDirectory, tablePrefix)
 ) : SSTableController {
-
-    private val tableLock = "lock"
 
     /**
      * Do an N-way merge of all the entries from all N tables. The tables are already in sorted order, but it's possible
      * that some keys are present in both the older and the younger level. In that case, we must drop the older values
-     * in favor of the younger ones which supersede them. TODO
+     * in favor of the younger ones which supersede them. We must also handle deletions. We need to retain deletion
+     * tombstones until we can guarantee that no higher levels in the tree contain leftover entries for the deleted key.
      */
-    override fun merge(tables: Sequence<SSTableMetadata>, targetLevel: Int): List<SSTableMetadata>? {
+    override fun merge(level: Int) = synchronized(manifest) {
         val start = System.nanoTime()
-        try {
-            val ids = tables.toList().map { it.id }
-            logMergeTask(ids, targetLevel, "started")
-            val result = mutableListOf<SSTableMetadata>()
-            val seq = entries(tables)
 
-            var (id, currentFile) = nextTableFile()
-            var currentWriter = BinaryWriteAheadLogWriter(
-                currentFile.toFile()
-                    .outputStream()
-                    .buffered(maxTableSize)
-            )
+        val targetLevel = level + 1
+
+        val sourceTables = if (level == 0) {
+            manifest.level(level).asList()
+        } else {
+            listOf(manifest.level(level).nextCompactionCandidate())
+        }
+        val destinationTables = sourceTables
+            .flatMap { manifest.level(targetLevel).getRange(it.keyRange) }
+
+        val ids = sourceTables.map { it.id }
+
+        val fileManager = BinaryWriteAheadLogManager(rootDirectory, tablePrefix, fileGenerator)
+
+        logMergeTask(ids, targetLevel, "started")
+        try {
+            val seq = entries(destinationTables + sourceTables)
+                .merge()
+
+
             var totalBytes = 0
             var minKey: String? = null
 
-            fun addEntry(entry: Entry) {
+            fun addEntry(key: String, value: Record) {
                 if (minKey == null)
-                    minKey = entry.first
+                    minKey = key
 
-                totalBytes += currentWriter.append(entry.first, entry.second)
+                totalBytes += fileManager.append(key, value)
                 if (totalBytes >= maxTableSize) {
-                    result.add(
+                    manifest.addTable(
                         SSTableMetadata(
-                            path = currentFile.toString(),
+                            path = fileManager.filePath.toString(),
                             minKey = minKey!!,
-                            maxKey = entry.first,
+                            maxKey = key,
                             level = targetLevel,
-                            id = id,
+                            id = fileManager.id,
                             fileSize = totalBytes
                         )
                     )
                     totalBytes = 0
-                    currentWriter.close()
-                    currentWriter = BinaryWriteAheadLogWriter(
-                        currentFile.toFile()
-                            .outputStream()
-                            .buffered(maxTableSize)
-                    )
+                    fileManager.rotate()
                     minKey = null
-                    val nextFile = nextTableFile()
-                    id = nextFile.first
-                    currentFile = nextFile.second
                 }
             }
 
             for (entry in seq) {
-                addEntry(entry)
+                addEntry(entry.key, entry.value)
+            }
+
+            for (table in sourceTables) {
+                manifest.removeTable(table)
+            }
+
+            for (table in destinationTables) {
+                manifest.removeTable(table)
             }
 
             logMergeTask(ids, targetLevel, "complete", System.nanoTime() - start)
-            return result
         } catch (t: Throwable) {
-            logger.error(t) { "Error in merge()" }
-            return null
+            logMergeTask(ids, targetLevel, "failed", System.nanoTime() - start, t)
+        } finally {
+            fileManager.close()
         }
     }
 
-    private fun logMergeTask(ids: List<Int>, targetLevel: Int, status: String, durationNanos: Long? = null) {
+    private fun logMergeTask(
+        ids: List<Int>,
+        targetLevel: Int,
+        status: String,
+        durationNanos: Long? = null,
+        t: Throwable? = null
+    ) {
         val baseMessage = "MergeTask=$ids targetLevel=$targetLevel status=$status"
         val message = if (durationNanos != null) {
             val durationMillis = durationNanos / 1000000
@@ -106,58 +121,45 @@ class StandardSSTableController(
         } else {
             baseMessage
         }
-        logger.info { message }
+
+        if (t != null) {
+            logger.error(t) { message }
+        } else {
+            logger.info { message }
+        }
     }
 
     override fun addTableFromLog(logPath: Path): SSTableMetadata {
-        // 1. Create the new table file.
-        val (id, file) = nextTableFile()
-        // 2. Read the wal file, merge and sort its contents, and write the result to the new table file.
-        val writer = BinaryWriteAheadLogWriter(
-            file.toFile()
-                .outputStream()
-                .buffered(Files.size(logPath).toInt())
-        )
-        val data = try {
-            val data = createLogReader(logPath).read().sortedBy { it.first }
-            data
-        } catch (e: Throwable) {
-            throw e
-        }
+        // Read the wal file, merge and sort its contents, and write the result to the new table file.
 
-        var totalBytes = 0
-        writer.use {
-            data.forEach {
-                totalBytes += writer.append(it.first, it.second)
+        BinaryWriteAheadLogManager(rootDirectory, tablePrefix, fileGenerator).use { writer ->
+            val data = try {
+                val data = createLogReader(logPath).read().merge()
+                data
+            } catch (e: Throwable) {
+                throw e
             }
+
+            var totalBytes = 0
+            data.forEach { entry ->
+                totalBytes += writer.append(entry.key, entry.value)
+            }
+
+            return SSTableMetadata(
+                path = writer.filePath.toString(),
+                minKey = data.firstKey(),
+                maxKey = data.lastKey(),
+                level = 0,
+                id = writer.id,
+                fileSize = totalBytes
+            )
         }
-
-        return SSTableMetadata(
-            path = file.toString(),
-            minKey = data.first().first,
-            maxKey = data.last().first,
-            level = 0,
-            id = id,
-            fileSize = totalBytes
-        )
     }
 
-    private fun nextTableId(): Int = nextFile(rootDirectory, tablePrefix)
-
-    private fun nextTableFile(): NumberedFile = synchronized(tableLock) {
-        val id = nextTableId()
-        return id to tableFile(rootDirectory, tablePrefix, id)
-    }
 
     companion object {
         val logger = KotlinLogging.logger { }
     }
 }
-
-fun tableFile(rootDirectory: File, prefix: String, id: Int): Path =
-    File(
-        rootDirectory,
-        "$prefix$id"
-    ).toPath()
 
 

@@ -3,7 +3,6 @@ package log
 import Config
 import core.Entry
 import core.Record
-import core.nextFile
 import counting
 import log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
 import log.BinaryWriteAheadLogWriter.Companion.FULL
@@ -30,8 +29,11 @@ interface WriteAheadLogManager : WriteAheadLogWriter {
 
 interface WriteAheadLogWriter : AutoCloseable {
 
-    // Append a record to the log. Return the number of bytes written.
-    fun append(key: String, value: Record): Int
+    /**
+     * Append a record to the log. Return the number of bytes written.
+     * Passing a null record signifies a deletion.
+     */
+    fun append(key: String, value: Record?): Int
 
     // Total number of bytes written to the file.
     fun size(): Int
@@ -52,9 +54,21 @@ data class Header(val crc: Int, val length: Int, val type: Int)
  */
 class BinaryWriteAheadLogManager(
     private val rootDirectory: File,
-    private val filePrefix: String = Config.walPrefix
+    private val filePrefix: String = Config.walPrefix,
+    private val fileGenerator: FileGenerator = SynchronizedFileGenerator(rootDirectory, filePrefix)
 ) : WriteAheadLogManager {
-    private var filePath: Path = nextPath()
+    var id: Int
+        private set
+
+    var filePath: Path
+        private set
+
+    init {
+        val numberedFile = fileGenerator.next()
+        id = numberedFile.first
+        filePath = numberedFile.second
+    }
+
     private var writer: WriteAheadLogWriter = createWriter(filePath)
 
     /**
@@ -71,30 +85,28 @@ class BinaryWriteAheadLogManager(
         writer.close()
     }
 
-    override fun append(key: String, value: Record): Int = writer.append(key, value)
+    override fun append(key: String, value: Record?): Int = writer.append(key, value)
 
     override fun size(): Int = writer.size()
 
     override fun rotate(): Path {
         val oldPath = filePath
         close()
-        filePath = nextPath()
+        val numberedFile = fileGenerator.next()
+        id = numberedFile.first
+        filePath = numberedFile.second
         writer = createWriter(filePath)
         return oldPath
     }
 
-    override fun read(): List<Entry> {
-        return BinaryWriteAheadLogReader(filePath) { it.decode() }.read()
-    }
-
-    private fun nextPath(): Path =
-        rootDirectory.toPath().resolve("$filePrefix${nextFile(rootDirectory, filePrefix)}")
+    override fun read(): List<Entry> = BinaryWriteAheadLogReader(filePath) { it.decode() }.read()
 
     private fun createWriter(path: Path): WriteAheadLogWriter {
-        val os = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+        val os = Files.newOutputStream(path, StandardOpenOption.CREATE_NEW)
             .buffered(BLOCK_SIZE)
-        return BinaryWriteAheadLogWriter(os, path)
+        return BinaryWriteAheadLogWriter(os)
     }
+
 
     companion object {
         val logger = KotlinLogging.logger { }
@@ -105,13 +117,12 @@ class BinaryWriteAheadLogManager(
  * Implements a binary protocol based on the one used by LevelDB.
  */
 class BinaryWriteAheadLogWriter(
-    private val os: OutputStream,
-    private val file: Path? = null
+    private val os: OutputStream
 ) : WriteAheadLogWriter {
     private val crc = CRC32C()
     private var totalBytes: Int = 0
 
-    override fun append(key: String, value: Record): Int {
+    override fun append(key: String, value: Record?): Int {
         // A header is always 9 bytes.
         val data = encode(key, value)
         return appendBytes(data)
@@ -211,7 +222,8 @@ class BinaryWriteAheadLogReader<T>(
 
     fun read(): List<T> {
         val result = mutableListOf<T>()
-        filePath.toFile().inputStream().counting().use {
+        logger.info { "read() file=${filePath.fileName}" }
+        Files.newInputStream(filePath).counting().use {
             try {
                 while (it.available() > 0) {
                     val record = it.readRecord()
@@ -248,7 +260,7 @@ class BinaryWriteAheadLogReader<T>(
     private fun CountingInputStream.readData(header: Header): ByteArray {
         val data = readNBytes(header.length)
         if (crc.checksum(header.type, data) != header.crc) {
-            logger.error("Corrupt record")
+            logger.error("Corrupt record file=${filePath.fileName}")
         }
         return data
     }

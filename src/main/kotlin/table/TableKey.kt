@@ -2,7 +2,7 @@ package table
 
 class TableKey(val minKey: String, val id: Int) : Comparable<TableKey> {
     override fun compareTo(other: TableKey): Int {
-        val strCmp = minKey.compareTo(minKey)
+        val strCmp = minKey.compareTo(other.minKey)
 
         if (strCmp == 0) {
             return id.compareTo(other.id)

@@ -1,28 +1,80 @@
+import ch.qos.logback.classic.Level
 import core.LogStructuredMergeTree
 import core.StandardLevel
 import core.StandardLogStructuredMergeTree
 import core.maxLevelSize
 import log.BinaryWriteAheadLogManager
 import log.BinaryWriteAheadLogWriter
+import log.SynchronizedFileGenerator
 import log.createLogReader
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import table.*
-import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 
-fun test(times: Int, ops: Int, tree: LogStructuredMergeTree) {
+/**
+ * Write some key-value pairs. Keys are sequential. Values are on the order of ~10 to ~1000 bytes.
+ */
+fun sequentialWrites(times: Int, ops: Int, treeFactory: () -> LogStructuredMergeTree) {
+    println("Testing sequential writes")
     val runs = ArrayList<Long>()
+    val random = Random(0)
+
     for (run in 1..times) {
+        val tree = treeFactory()
         val start = System.nanoTime()
         for (i in 1..ops) {
+            val name = ByteArray(random.nextInt(1000) + 5).run {
+                random.nextBytes(this)
+                Base64.getEncoder().encodeToString(this)!!
+            }
             tree.put(
                 "person$i", sortedMapOf(
-                    "name" to "will",
-                    "age" to 29
+                    "name" to name,
+                    "age" to random.nextInt()
                 )
             )
         }
+        tree.close()
+        val end = System.nanoTime()
+        runs.add(end - start)
+    }
+
+    val opsPerSecond = "%.2f".format((ops * times).toDouble() / (runs.sum() / 1_000_000_000.0))
+    println("Ops per second: $opsPerSecond")
+    println(runs)
+}
+
+/**
+ * Write some key-value pairs. Keys are random. Values are on the order of ~10 to ~1000 bytes.
+ */
+fun randomWrites(times: Int, ops: Int, treeFactory: () -> LogStructuredMergeTree) {
+    println("Testing random writes")
+    val runs = ArrayList<Long>()
+    val random = Random(0)
+
+    for (run in 1..times) {
+        val tree = treeFactory()
+        val start = System.nanoTime()
+        for (i in 1..ops) {
+            val key = ByteArray(16).run {
+                random.nextBytes(this)
+                Base64.getEncoder().encodeToString(this)!!
+            }
+            val name = ByteArray(random.nextInt(1000) + 5).run {
+                random.nextBytes(this)
+                Base64.getEncoder().encodeToString(this)!!
+            }
+            tree.put(
+                key, sortedMapOf(
+                    "name" to name,
+                    "age" to random.nextInt()
+                )
+            )
+        }
+        tree.close()
         val end = System.nanoTime()
         runs.add(end - start)
     }
@@ -36,11 +88,10 @@ fun parseConfig(): Config {
     return Config
 }
 
-fun main() {
-    File("./build/manifest").apply { mkdirs() }
-    val manifestFile = File("./build/manifest/manifest.log").apply { createNewFile() }
-    val sstableDir = File("./build/sstable").apply { mkdirs() }
-    val walDir = File("./build/log").apply { mkdirs() }
+fun treeFactory(): StandardLogStructuredMergeTree {
+    val manifestFile = createTempFile("manifest")
+    val sstableDir = createTempDir("sstable")
+    val walDir = createTempDir("wal")
 
     val config = parseConfig()
 
@@ -57,17 +108,19 @@ fun main() {
     val tableController = StandardSSTableController(
         sstableDir,
         config.sstablePrefix,
-        config.maxSstableSize
+        config.maxSstableSize,
+        manifestManager,
+        SynchronizedFileGenerator(sstableDir, config.sstablePrefix)
     )
 
-    val tree = StandardLogStructuredMergeTree(
+    return StandardLogStructuredMergeTree(
         {
             StandardMemTable(
                 TreeMap()
             )
         },
         StandardSSTableManager(
-            File("./build/sstables"),
+            sstableDir,
             manifestManager,
             BinarySSTableReader(
                 sstableDir,
@@ -83,17 +136,23 @@ fun main() {
         ),
         BinaryWriteAheadLogManager(
             walDir,
-            Config.walPrefix
+            Config.walPrefix,
+            SynchronizedFileGenerator(walDir, Config.walPrefix)
         ),
         Config
     ).apply { start() }
+}
 
-    tree.use {
-        thread(start = true) {
-            test(5, 100_000, tree)
-        }.join()
-    }
+fun main() {
+    val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as ch.qos.logback.classic.Logger
+    rootLogger.level = Level.ERROR
+    thread(start = true) {
+        sequentialWrites(5, 2_000_000, treeFactory = { treeFactory() })
+    }.join()
 
+    thread(start = true) {
+        randomWrites(5, 2_000_000, treeFactory = { treeFactory() })
+    }.join()
     println("Run complete.")
 }
 

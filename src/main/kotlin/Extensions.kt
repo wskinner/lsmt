@@ -4,6 +4,7 @@ import log.createLogReader
 import table.SSTableMetadata
 import java.io.InputStream
 import java.nio.file.Paths
+import java.util.*
 
 fun Int.toByteArray(): ByteArray = Bytes.intToBytes(this)
 fun Long.toByteArray(): ByteArray = Bytes.longToBytes(this)
@@ -36,3 +37,26 @@ fun SSTableMetadata.toSequence(): Sequence<Entry> = sequence {
     val reader = createLogReader(Paths.get(path))
     yieldAll(reader.read())
 }
+
+/**
+ * Transforms a stream of Entry, which may represent an insertion or a deletion, into a stream of SafeEntry. This
+ * represents a snapshot of the state of the system at the time the last Entry was appended to the stream.
+ *
+ * The resulting Iterable is no longer ordered by insertion time, but by key.
+ */
+fun Sequence<Entry>.merge(): SortedMap<String, Record> {
+    val map = TreeMap<String, Record>()
+
+    for (entry in iterator()) {
+        if (entry.second == null) {
+            map.remove(entry.first)
+        } else {
+            // The compiler can't seem to tell that entry.second is never null here
+            map[entry.first] = entry.second!!
+        }
+    }
+
+    return map
+}
+
+fun Iterable<Entry>.merge(): SortedMap<String, Record> = asSequence().merge()

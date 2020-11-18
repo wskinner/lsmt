@@ -54,6 +54,11 @@ interface Level : Iterable<SSTableMetadata> {
      * Remove all tables in this level.
      */
     fun clear()
+
+    /**
+     * Return a list of all the member tables, ordered by their key in the underlying structure
+     */
+    fun asList(): List<SSTableMetadata>
 }
 
 /**
@@ -88,6 +93,8 @@ class StandardLevel(
     }
 
     override fun clear() = map.clear()
+
+    override fun asList(): List<SSTableMetadata> = map.values.toList()
 
     override fun iterator(): Iterator<SSTableMetadata> = map.values.iterator()
 

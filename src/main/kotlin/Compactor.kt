@@ -1,5 +1,3 @@
-import core.Level
-import core.LevelIndex
 import table.ManifestManager
 import table.SSTableController
 
@@ -48,13 +46,9 @@ class StandardCompactor(
      */
     private fun doCompaction(levelI: Int) = synchronized(manifest) {
         val l1 = manifest.level(levelI)
-        val l2 = manifest.getOrPut(levelI + 1)
 
         while (l1.size() > levelSizeLimit(levelI)) {
-            val next = l1.nextCompactionCandidate()
-            val overlapping = l2.getRange(next.keyRange)
-
-            ssTableController.merge(overlapping.asSequence() + next, levelI + 1)
+            ssTableController.merge(levelI)
         }
     }
 }

@@ -41,11 +41,16 @@ class StandardLogStructuredMergeTree(
     override fun get(key: String): Record? = memTable.get(key) ?: ssTable.get(key)
 
     override fun delete(key: String) {
-        TODO("Not yet implemented")
+        writeAheadLog.append(key, null)
+        memTable.delete(key)
     }
 
     override fun start() {}
 
+    /**
+     * Shut down the tree. After this function returns, All existing log files will have been flushed to SSTables, and
+     * the manifest will have been updated.
+     */
     override fun close() {
         logger.info("Shutting down LSMT")
         ssTable.addTableAsync(writeAheadLog.rotate())
