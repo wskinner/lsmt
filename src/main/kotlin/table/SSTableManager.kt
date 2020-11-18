@@ -1,13 +1,18 @@
 package table
 
 import Config
+import core.Entry
+import core.KeyRange
 import core.Record
 import core.nextFile
 import log.BinaryWriteAheadLogReader
 import log.BinaryWriteAheadLogWriter
+import merge
+import overlaps
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -62,21 +67,21 @@ class StandardSSTableManager(
 
     override fun get(key: String): Record? = getYoung(key) ?: getOld(key)
 
-    override fun addTable(wal: Path, level: Int) {
+    override fun addTable(wal: Path, level: Int) = synchronized(this) {
         // 1. Create the new table file.
         val id = nextTableId()
         val file = tableFile(rootDirectory, config.sstablePrefix, id)
 
         // 2. Read the wal file, merge and sort its contents, and write the result to the new table file.
         val writer = BinaryWriteAheadLogWriter(
-            file,
             file.toFile()
                 .outputStream()
                 .buffered(Files.size(wal).toInt())
         )
         val data = BinaryWriteAheadLogReader(wal).read()
+        var totalBytes = 0
         data.forEach {
-            writer.append(it.first, it.second)
+            totalBytes += writer.append(it.first, it.second)
         }
 
         // 3. Add the new table file to the young level.
@@ -86,9 +91,116 @@ class StandardSSTableManager(
                 minKey = data.first().first,
                 maxKey = data.last().first,
                 level = level,
-                id = id
+                id = id,
+                fileSize = totalBytes
             )
         )
+
+        // When the size of the young level exceeds a threshold, merge all young level files into all overlapping files
+        // in level 1.
+        if (manifest.tables()[0]?.size ?: 0 > 4) {
+            mergeYoung()
+        }
+    }
+
+    /**
+     * Merges the young level into level 1. The result is a new level 1, in which the level i > 0 invariant is
+     * maintained: no two tables in the same level may have overlapping key ranges. Since SSTables are immutable,
+     * any table merges that occur will result in the creation of new tables.
+     *
+     * 1. Merge the levels, possibly resulting in some tables that are larger than the 2MB file limit.
+     * 2. Ensure all tables are less than 2MB by splitting larger tables.
+     */
+    private fun mergeYoung() {
+        val newLevel1 = TreeMap(manifest.tables()[0])
+        manifest.tables()[1]?.let { newLevel1.putAll(it) }
+        val mergeGroups = mutableListOf<List<SSTableMetadata>>()
+
+
+        var currentGroup = mutableListOf(newLevel1.firstEntry().value!!)
+        var currentRange = currentGroup.last().keyRange
+        for (next in newLevel1.values.drop(1)) {
+            if (currentRange overlaps next.keyRange) {
+                currentGroup.add(next)
+                currentRange = currentRange.merge(next.keyRange)
+            } else {
+                if (currentGroup.isNotEmpty()) {
+                    mergeGroups.add(currentGroup)
+                    currentGroup = mutableListOf()
+                    currentRange = KeyRange("", "")
+                }
+            }
+        }
+
+        for (group in mergeGroups) {
+            for (table in group) {
+                manifest.removeTable(table)
+            }
+
+            for (table in merge(group, config.maxSstableSize)) {
+                manifest.addTable(table)
+            }
+        }
+    }
+
+    private fun concat(tables: Collection<SSTableMetadata>): Sequence<Entry> = sequence {
+        for (table in tables) {
+            val reader = BinaryWriteAheadLogReader(table.tableFile())
+            yieldAll(reader.read())
+        }
+    }
+
+    /**
+     * Given a collection of tables which span a certain range, split the tables into one or new tables, which
+     * together span the same range, such that no table is larger than the maximum number of bytes.
+     */
+    fun merge(tables: Collection<SSTableMetadata>, maxBytes: Int): List<SSTableMetadata> {
+        val result = mutableListOf<SSTableMetadata>()
+        val seq = concat(tables)
+
+        var id = nextTableId()
+        var currentFile = tableFile(rootDirectory, config.sstablePrefix, id)
+        var currentWriter = BinaryWriteAheadLogWriter(
+            currentFile.toFile()
+                .outputStream()
+                .buffered(config.maxSstableSize)
+        )
+        var totalBytes = 0
+        var minKey: String? = null
+
+        fun addEntry(entry: Entry) {
+            if (minKey == null)
+                minKey = entry.first
+
+            totalBytes += currentWriter.append(entry.first, entry.second)
+            if (totalBytes >= config.maxSstableSize) {
+                result.add(
+                    SSTableMetadata(
+                        name = currentFile.toString(),
+                        minKey = minKey!!,
+                        maxKey = entry.first,
+                        level = 1, // TODO fix
+                        id = id,
+                        fileSize = totalBytes
+                    )
+                )
+                currentWriter.close()
+                currentWriter = BinaryWriteAheadLogWriter(
+                    currentFile.toFile()
+                        .outputStream()
+                        .buffered(config.maxSstableSize)
+                )
+                id = nextTableId()
+                minKey = null
+                currentFile = tableFile(rootDirectory, config.sstablePrefix, id)
+            }
+        }
+
+        for (entry in seq) {
+            addEntry(entry)
+        }
+
+        return result
     }
 
     override fun doCompaction() {
@@ -114,7 +226,7 @@ class StandardSSTableManager(
         val os = dest.toFile()
             .outputStream()
             .buffered(Files.size(source).toInt())
-        val writer = BinaryWriteAheadLogWriter(dest, os)
+        val writer = BinaryWriteAheadLogWriter(os)
         reader.read().forEach {
             writer.append(it.first, it.second)
         }
@@ -155,6 +267,8 @@ class StandardSSTableManager(
 
         return null
     }
+
+    fun SSTableMetadata.tableFile(): Path = tableFile(rootDirectory, config.sstablePrefix, id)
 }
 
 private fun tableFile(rootDirectory: File, prefix: String, id: Int): Path =

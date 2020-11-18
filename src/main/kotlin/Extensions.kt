@@ -1,4 +1,7 @@
+import core.KeyRange
 import core.Record
+import core.max
+import core.min
 import log.CountingInputStream
 import table.SSTableMetadata
 import java.io.InputStream
@@ -21,6 +24,11 @@ fun Record.toSSTableMetadata(): SSTableMetadata? {
         (this["minKey"] ?: return null) as String,
         (this["maxKey"] ?: return null) as String,
         (this["level"] ?: return null) as Int,
-        (this["id"] ?: return null) as Int
+        (this["id"] ?: return null) as Int,
+        (this["fileSize"] ?: return null) as Int
     )
 }
+
+infix fun KeyRange.overlaps(other: KeyRange): Boolean = other.contains(start) || contains(other.start)
+
+fun KeyRange.merge(other: KeyRange): KeyRange = KeyRange(min(start, other.start), max(endInclusive, other.endInclusive))

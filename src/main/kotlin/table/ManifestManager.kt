@@ -2,6 +2,7 @@ package table
 
 import core.KeyRange
 import core.TableIndex
+import core.min
 import log.BinaryWriteAheadLogReader
 import log.WriteAheadLogWriter
 import table.StandardManifestManager.Companion.add
@@ -44,7 +45,8 @@ data class SSTableMetadata(
     val maxKey: String,
     val level: Int,
     val id: Int,
-    val keyRange: KeyRange = minKey.rangeTo(maxKey)
+    val fileSize: Int,
+    val keyRange: KeyRange = KeyRange(minKey, maxKey)
 ) {
 
     fun toRecord(): SortedMap<String, Any> {
@@ -86,7 +88,7 @@ class StandardManifestManager(
             allTables[table.level] = TreeMap()
         }
 
-        allTables[table.level]?.put(table.id, table)
+        allTables[table.level]?.put(table.minKey, table)
     }
 
     override fun removeTable(table: SSTableMetadata) {
@@ -103,13 +105,13 @@ class BinaryManifestReader(
     private val logReader: BinaryWriteAheadLogReader
 ) : ManifestReader {
     override fun read(): TableIndex {
-        val result = TreeMap<Int, SortedMap<Int, SSTableMetadata>>()
+        val result = TreeMap<Int, SortedMap<String, SSTableMetadata>>()
 
         logReader.read().forEach { (type, record) ->
             val tableMeta = record.toSSTableMetadata()
             when (type) {
-                add -> result[tableMeta?.level]?.put(tableMeta?.id, tableMeta)
-                remove -> result[tableMeta?.level]?.get(tableMeta?.id)
+                add -> result[tableMeta?.level]?.put(tableMeta?.minKey, tableMeta)
+                remove -> result[tableMeta?.level]?.get(tableMeta?.minKey)
             }
         }
         return result

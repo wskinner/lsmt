@@ -20,9 +20,6 @@ import java.util.zip.CRC32C
 import kotlin.math.min
 
 interface WriteAheadLogManager : WriteAheadLogWriter {
-    // Append a record to the log.
-    override fun append(key: String, value: Record)
-
     // Return the size, in bytes, of the log file.
     fun size(): Long
 
@@ -35,8 +32,8 @@ interface WriteAheadLogManager : WriteAheadLogWriter {
 
 interface WriteAheadLogWriter : AutoCloseable {
 
-    // Append a record to the log.
-    fun append(key: String, value: Record)
+    // Append a record to the log. Return the number of bytes written.
+    fun append(key: String, value: Record): Int
 }
 
 data class Header(val crc: Int, val length: Int, val type: Int)
@@ -72,9 +69,7 @@ class BinaryWriteAheadLogManager(
         writer.close()
     }
 
-    override fun append(key: String, value: Record) {
-        writer.append(key, value)
-    }
+    override fun append(key: String, value: Record): Int = writer.append(key, value)
 
     override fun size(): Long {
         return Files.size(filePath)
@@ -99,21 +94,20 @@ class BinaryWriteAheadLogManager(
 
     private fun createWriter(): WriteAheadLogWriter {
         val os = Files.newOutputStream(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
-        return BinaryWriteAheadLogWriter(filePath, os)
+        return BinaryWriteAheadLogWriter(os)
     }
 }
 
 /**
- * Implements a binary protocol based on the one used by LevelDB. We pass the file Path and an OutputStream because the
- * writer needs to be able to discover the file size in order to pick block boundaries.
+ * Implements a binary protocol based on the one used by LevelDB.
  */
 class BinaryWriteAheadLogWriter(
-    private val filePath: Path,
     private val os: OutputStream
 ) : WriteAheadLogWriter {
     private val crc = CRC32C()
+    private var totalBytes: Int = 0
 
-    override fun append(key: String, value: Record) {
+    override fun append(key: String, value: Record): Int {
         // A header is always 9 bytes.
         val data = encode(key, value)
         var length: Int
@@ -124,15 +118,16 @@ class BinaryWriteAheadLogWriter(
         length = data.size
         var remainingBytes = writeTrailer()
 
+        var bytesWritten = 0
         if (length <= remainingBytes + 9) {
             type = FULL
             check = crc.checksum(type, data)
-            write(check, length, type, data, offset)
+            bytesWritten += write(check, length, type, data, offset)
         } else {
             length = remainingBytes
             type = FIRST
             check = crc.checksum(type, data, offset, length)
-            write(check, length, type, data, offset)
+            bytesWritten += write(check, length, type, data, offset)
 
             do {
                 remainingBytes = writeTrailer()
@@ -150,20 +145,26 @@ class BinaryWriteAheadLogWriter(
                 }
 
                 check = crc.checksum(type, data, offset, length)
-                write(check, length, type, data, offset)
+                bytesWritten += write(check, length, type, data, offset)
             } while (data.size > offset + length)
         }
+        return bytesWritten
     }
 
     override fun close() {
         os.close()
     }
 
-    private fun write(check: Int, length: Int, type: Int, data: ByteArray, offset: Int) {
-        os.write(check.toByteArray())
-        os.write(length.toByteArray())
+    private fun write(check: Int, length: Int, type: Int, data: ByteArray, offset: Int): Int {
+        val checkBytes = check.toByteArray()
+        val lengthBytes = length.toByteArray()
+        os.write(checkBytes)
+        os.write(lengthBytes)
         os.write(type)
         os.write(data, offset, length)
+        val bytes = checkBytes.size + lengthBytes.size + 1 + data.size
+        totalBytes += bytes
+        return bytes
     }
 
     /**
@@ -172,13 +173,13 @@ class BinaryWriteAheadLogWriter(
      */
     private fun writeTrailer(): Int {
         val remainingBytes =
-            BLOCK_SIZE - Files.size(filePath) % BLOCK_SIZE
+            BLOCK_SIZE - totalBytes % BLOCK_SIZE
         if (remainingBytes < 9) {
             repeat((1..remainingBytes).count()) {
                 os.write(0)
             }
         }
-        return BLOCK_SIZE - (Files.size(filePath) % BLOCK_SIZE).toInt()
+        return BLOCK_SIZE - (totalBytes % BLOCK_SIZE)
     }
 
     companion object {

@@ -13,3 +13,11 @@ fun currentFile(directory: File, prefix: String): Int =
     }?.map {
         it.removePrefix(prefix).toInt()
     }?.max() ?: 0
+
+fun min(a: String, b: String): String =
+    if (a < b) a
+    else b
+
+fun max(a: String, b: String) =
+    if (a > b) a
+    else b
