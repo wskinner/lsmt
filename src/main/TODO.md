@@ -1,2 +1,3 @@
 - Add global and per-table bloom filter
 - Interval tree for index
+- Move memtable off heap
