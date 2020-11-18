@@ -7,7 +7,7 @@ plugins {
 jmh {
     include = [
 //            ".*SequentialReads.*",
-//            ".*SequentialWrites.*",
+            ".*SequentialWrites.*",
 //            ".*RandomReads.*",
             ".*RandomWrites.*"
     ]

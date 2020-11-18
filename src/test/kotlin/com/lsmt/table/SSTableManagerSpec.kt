@@ -2,7 +2,9 @@ package com.lsmt.table
 
 import ch.qos.logback.classic.Level.DEBUG
 import com.lsmt.core.DefaultConfig
-import com.lsmt.core.*
+import com.lsmt.core.LogStructuredMergeTree
+import com.lsmt.core.StandardLogStructuredMergeTree
+import com.lsmt.core.longBytesSeq
 import com.lsmt.domain.Entry
 import com.lsmt.domain.StandardLevel
 import com.lsmt.log.*
@@ -144,6 +146,29 @@ class SSTableManagerSpec : StringSpec({
         }
     }
 
+    "merge level 0 to level 1 shuffled" {
+        val manifestDir = createTempDir().apply { deleteOnExit() }
+        val manifestFile = createTempFile(directory = manifestDir).apply { deleteOnExit() }
+        val manifest = StandardManifestManager(
+            BinaryManifestWriter(
+                BinaryLogWriter(manifestFile.outputStream())
+            ),
+            BinaryManifestReader(
+                createLogReader(manifestFile.toPath())
+            ),
+            levelFactory = { StandardLevel(it) }
+        )
+        val tree = tree(manifest)
+        val entries = fillTree(tree, shuffled = true)
+        tree.close()
+        (manifest.level(0).size()) shouldBe 3
+        (manifest.level(1).size()) shouldBe 11
+
+        for (entry in entries) {
+            tree.get(entry.first) shouldBe entry.second
+        }
+    }
+
     "no exception" {
         val random = Random(0)
 
@@ -212,10 +237,14 @@ fun entrySeq() = sequence<Entry> {
     }
 }
 
-fun fillTree(tree: LogStructuredMergeTree): List<Entry> {
+fun fillTree(tree: LogStructuredMergeTree, shuffled: Boolean = false): List<Entry> {
     val entries = mutableListOf<Entry>()
+    val seq = if (shuffled)
+        entrySeq().shuffled()
+    else
+        entrySeq()
 
-    for ((key, value) in entrySeq()) {
+    for ((key, value) in seq) {
         tree.put(key, value!!)
         entries.add(key to value)
     }
