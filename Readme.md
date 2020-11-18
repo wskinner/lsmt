@@ -53,7 +53,7 @@ SequentialReads.singleRead    thrpt   10  11060759.012 ± 6665679.961  ops/s
 SequentialWrites.singleWrite  thrpt   10   1391314.466 ±   31009.056  ops/s
 ```
 
-## Latest benchmark (12-core desktop, 12 threads for reads)
+## Latest benchmark (12-core desktop, 24 threads for reads)
 ```text
 Benchmark                      Mode  Cnt        Score         Error  Units
 RandomReads.singleRead        thrpt   10   306911.379 ±   14335.331  ops/s
