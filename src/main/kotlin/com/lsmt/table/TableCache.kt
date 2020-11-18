@@ -54,7 +54,7 @@ class TableCache(
      * Create a new SSTable from the log with the given ID. Return its metadata.
      */
     fun write(logId: Int): SSTableMetadata {
-        logger.info("Writing table for log=$logId")
+        logger.debug("Writing table for log=$logId")
         val logPath = walFileGenerator.path(logId)
         BinaryLogManager(sstableFileGenerator).use { writer ->
             val data = try {

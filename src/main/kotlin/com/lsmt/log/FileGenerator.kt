@@ -2,7 +2,6 @@ package com.lsmt.log
 
 import com.lsmt.core.NumberedFile
 import com.lsmt.core.makeFile
-import com.lsmt.core.nextFile
 import java.io.File
 import java.nio.file.Path
 
@@ -26,12 +25,21 @@ class SynchronizedFileGenerator(
     private val prefix: String
 ) : FileGenerator {
     override fun next(): NumberedFile = synchronized(this) {
-        val id = nextFileId()
+        val id = nextFile()
         return id to makeFile(rootDirectory, prefix, id)
     }
 
     override fun path(id: Int): Path = makeFile(rootDirectory, prefix, id)
 
-    private fun nextFileId(): Int = nextFile(rootDirectory, prefix)
+    private fun nextFile(): Int {
+        val current = currentFile()
+        return current + 1
+    }
 
+    private fun currentFile(): Int =
+        rootDirectory.list { _, name ->
+            name?.startsWith(prefix) ?: false
+        }?.map {
+            it.removePrefix(prefix).toInt()
+        }?.max() ?: 0
 }

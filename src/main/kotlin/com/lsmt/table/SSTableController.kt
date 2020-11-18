@@ -154,7 +154,7 @@ class StandardSSTableController(
      * serializing the contents.
      */
     private fun moveTableUp(table: SSTableMetadata) {
-        logger.info("Moving table. table=${table.id} newLevel=${table.level + 1}")
+        logger.debug("Moving table. table=${table.id} newLevel=${table.level + 1}")
         val newTableMeta = table.copy(level = table.level + 1)
         manifest.removeTable(table)
         manifest.addTable(newTableMeta)
@@ -186,7 +186,7 @@ class StandardSSTableController(
     override fun addTableFromLog(id: Int): SSTableMetadata = tableCache.write(id)
 
     override fun addCompactionTask(level: Int) {
-        logger.info("Adding compaction task for level=$level")
+        logger.debug("Adding compaction task for level=$level")
         compactionPool.submit { merge(level) }
     }
 

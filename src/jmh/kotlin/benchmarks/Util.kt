@@ -3,8 +3,10 @@ package benchmarks
 import ch.qos.logback.classic.Level
 import com.lsmt.core.StandardLevel
 import com.lsmt.core.StandardLogStructuredMergeTree
-import com.lsmt.core.maxLevelSize
-import com.lsmt.log.*
+import com.lsmt.log.BinaryLogManager
+import com.lsmt.log.BinaryLogWriter
+import com.lsmt.log.SynchronizedFileGenerator
+import com.lsmt.log.createLogReader
 import com.lsmt.parseConfig
 import com.lsmt.table.*
 import java.util.*
@@ -26,10 +28,23 @@ fun treeFactory(): StandardLogStructuredMergeTree {
         levelFactory = { StandardLevel(it) }
     )
 
+    val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, config.sstablePrefix)
+    val walFileGenerator = SynchronizedFileGenerator(walDir, config.walPrefix)
+    val tableCache = TableCache(
+        BinarySSTableReader(
+            sstableDir,
+            config.sstablePrefix
+        ),
+        config.maxCacheSizeMB,
+        walFileGenerator = walFileGenerator,
+        sstableFileGenerator = sstableFileGenerator
+    )
+
     val tableController = StandardSSTableController(
         config.maxSstableSize,
         manifestManager,
-        SynchronizedFileGenerator(sstableDir, config.sstablePrefix)
+        tableCache,
+        sstableFileGenerator
     )
 
     return StandardLogStructuredMergeTree(
@@ -46,17 +61,10 @@ fun treeFactory(): StandardLogStructuredMergeTree {
                 config.sstablePrefix
             ),
             config,
-            tableController,
-            StandardCompactor(
-                manifestManager,
-                { maxLevelSize(it) },
-                tableController
-            )
+            tableController
         ),
-        BinaryLogManager(
-            SynchronizedFileGenerator(walDir, config.walPrefix)
-        ),
+        BinaryLogManager(walFileGenerator),
         config,
-        Level.DEBUG
+        Level.INFO
     ).apply { start() }
 }

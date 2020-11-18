@@ -89,7 +89,7 @@ class StandardSSTableManager(
     }
 
     override fun addTableAsync(logId: Int) {
-        logger.info("Adding task for log=$logId")
+        logger.debug("Adding task for log=$logId")
         tableCreationPool.submit {
             addTableFromLog(logId)
         }

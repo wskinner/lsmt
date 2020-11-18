@@ -95,7 +95,7 @@ class StandardManifestManager(
     }
 
     override fun addTable(table: SSTableMetadata) {
-        logger.info { "addTable() level=${table.level} id=${table.id}" }
+        logger.debug { "addTable() level=${table.level} id=${table.id}" }
         writer.addTable(table)
 
         synchronized(this) {
@@ -108,7 +108,7 @@ class StandardManifestManager(
     }
 
     override fun removeTable(table: SSTableMetadata): Unit = synchronized(this) {
-        logger.info { "removeTable() level=${table.level} id=${table.id}" }
+        logger.debug { "removeTable() level=${table.level} id=${table.id}" }
         try {
             allTables[table.level]?.remove(table)
         } catch (t: Throwable) {
