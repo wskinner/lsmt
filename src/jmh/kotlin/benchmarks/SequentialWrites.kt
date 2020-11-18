@@ -1,6 +1,8 @@
 package benchmarks
 
 import com.lsmt.core.LogStructuredMergeTree
+import com.lsmt.toByteArray
+import com.lsmt.toKey
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.annotations.Mode.Throughput
 import java.util.*
@@ -39,10 +41,6 @@ open class SequentialWrites {
         val value = ByteArray(random.nextInt(1000) + 5).apply {
             random.nextBytes(this)
         }
-        tree?.put("person${counter++}", value)
-    }
-
-    companion object {
-        const val maxIterations = 2_000_000
+        tree?.put(counter++.toByteArray(littleEndian = false).toKey(), value)
     }
 }

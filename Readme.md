@@ -54,6 +54,12 @@ SequentialReads.singleRead  thrpt   10  96898.472 ± 17878.384  ops/s
 SequentialReads.singleRead  thrpt   10  32924.280 ± 87581.672  ops/s
 ```
 
+### Byte arrays for keys
+```text
+SequentialReads.singleRead  thrpt   10  3859520.502 ± 1459138.981  ops/s
+SequentialWrites.singleWrite  thrpt    2  475170.724          ops/s
+```
+
 ## Running benchmarks
 Benchmarks can be run with
 ```bash

@@ -26,6 +26,8 @@ data class BlockHandle(
     val offset: Int
 )
 
+// TODO(will) figure out how to make this an inline class. At time of writing, the overridden methods cause compile
+// errors.
 data class Key(val byteArray: UByteArray) : Comparable<Key> {
     override fun compareTo(other: Key): Int = byteArray.compareTo(other.byteArray)
 
@@ -42,6 +44,11 @@ data class Key(val byteArray: UByteArray) : Comparable<Key> {
 
     override fun hashCode(): Int {
         return byteArray.contentHashCode()
+    }
+
+    override fun toString(): String {
+        val contents = byteArray.joinToString(",") { it.toString() }
+        return "Key[${contents}]"
     }
 
     val size = byteArray.size

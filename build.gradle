@@ -6,8 +6,8 @@ plugins {
 
 jmh {
     include = [
-            ".*SequentialReads.*"
-//             ".*SequentialWrites.*"
+//            ".*SequentialReads.*"
+".*SequentialWrites.*"
     ]
     duplicateClassesStrategy = 'warn'
     jvmArgs = ["-XX:+PreserveFramePointer"]
@@ -49,12 +49,14 @@ dependencies {
 compileKotlin {
     kotlinOptions.jvmTarget = "1.8"
     kotlinOptions.freeCompilerArgs = ["-Xopt-in=kotlin.ExperimentalStdlibApi",
-                                      "-Xopt-in=kotlin.ExperimentalUnsignedTypes"]
+                                      "-Xopt-in=kotlin.ExperimentalUnsignedTypes",
+                                      "-Xinline-classes"]
 }
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
     kotlinOptions.freeCompilerArgs = ["-Xopt-in=kotlin.ExperimentalStdlibApi",
-                                      "-Xopt-in=kotlin.ExperimentalUnsignedTypes"]
+                                      "-Xopt-in=kotlin.ExperimentalUnsignedTypes",
+                                      "-Xinline-classes"]
 }
 
 test {
