@@ -5,6 +5,7 @@ import com.lsmt.domain.Record
 import com.lsmt.core.longBytesSeq
 import com.lsmt.log.SynchronizedFileGenerator
 import com.lsmt.log.createSSTableManager
+import com.lsmt.manifest.SSTableMetadata
 import com.lsmt.toKey
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec

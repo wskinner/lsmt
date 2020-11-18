@@ -1,4 +1,4 @@
-package com.lsmt.table
+package com.lsmt.manifest
 
 import com.lsmt.log.LogWriter
 

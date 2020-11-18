@@ -1,4 +1,4 @@
-package com.lsmt.table
+package com.lsmt.manifest
 
 import com.lsmt.domain.Level
 import com.lsmt.domain.LevelIndex

@@ -1,8 +1,10 @@
-package com.lsmt.table
+package com.lsmt.cache
 
 import com.lsmt.domain.*
+import com.lsmt.manifest.SSTableMetadata
 import com.lsmt.readInt
 import com.lsmt.readNBytes
+import com.lsmt.table.SSTableIterator
 import com.lsmt.toKey
 import java.nio.ByteBuffer
 

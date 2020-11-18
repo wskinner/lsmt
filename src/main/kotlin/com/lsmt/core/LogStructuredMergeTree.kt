@@ -4,7 +4,6 @@ import ch.qos.logback.classic.Level
 import com.lsmt.domain.Key
 import com.lsmt.domain.Record
 import com.lsmt.log.BinaryLogManager
-import com.lsmt.table.MemTable
 import com.lsmt.table.SSTableManager
 import mu.KotlinLogging
 import org.slf4j.Logger

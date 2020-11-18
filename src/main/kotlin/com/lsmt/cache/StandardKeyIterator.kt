@@ -1,4 +1,4 @@
-package com.lsmt.table
+package com.lsmt.cache
 
 import com.lsmt.domain.Key
 import com.lsmt.log.BinaryLogWriter.Companion.FIRST

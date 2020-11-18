@@ -1,6 +1,8 @@
 package com.lsmt.table
 
 import com.lsmt.core.maxLevelSize
+import com.lsmt.manifest.ManifestManager
+import com.lsmt.manifest.SSTableMetadata
 import java.lang.Integer.max
 import java.lang.Integer.min
 

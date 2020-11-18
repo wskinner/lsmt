@@ -1,4 +1,4 @@
-package com.lsmt.table
+package com.lsmt.core
 
 import com.lsmt.domain.Key
 import com.lsmt.domain.Record

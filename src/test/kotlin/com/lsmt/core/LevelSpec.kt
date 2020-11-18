@@ -1,7 +1,7 @@
 package com.lsmt.core
 
 import com.lsmt.domain.StandardLevel
-import com.lsmt.table.SSTableMetadata
+import com.lsmt.manifest.SSTableMetadata
 import com.lsmt.toKey
 import io.kotlintest.matchers.collections.shouldBeLargerThan
 import io.kotlintest.specs.StringSpec

@@ -1,6 +1,7 @@
-package com.lsmt.table
+package com.lsmt.manifest
 
 import com.lsmt.domain.*
+import com.lsmt.table.TableKey
 import com.lsmt.toByteArray
 import com.lsmt.toKey
 import mu.KotlinLogging

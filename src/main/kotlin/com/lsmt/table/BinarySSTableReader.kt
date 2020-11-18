@@ -2,6 +2,7 @@ package com.lsmt.table
 
 import com.lsmt.domain.Key
 import com.lsmt.domain.Record
+import com.lsmt.manifest.SSTableMetadata
 import com.lsmt.tableBuffer
 import java.io.RandomAccessFile
 import java.nio.channels.FileChannel.MapMode.READ_ONLY

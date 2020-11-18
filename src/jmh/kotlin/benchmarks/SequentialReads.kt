@@ -3,7 +3,7 @@ package benchmarks
 import com.lsmt.core.LogStructuredMergeTree
 import com.lsmt.domain.Key
 import com.lsmt.domain.Record
-import com.lsmt.table.StandardKeyIterator
+import com.lsmt.cache.StandardKeyIterator
 import org.openjdk.jmh.annotations.*
 import java.util.concurrent.TimeUnit
 

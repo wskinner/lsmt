@@ -1,7 +1,6 @@
 package com.lsmt
 
 import Bytes
-import com.lsmt.domain.Entry
 import com.lsmt.domain.Key
 import com.lsmt.domain.KeyRange
 import com.lsmt.domain.Record
@@ -9,8 +8,8 @@ import com.lsmt.log.BinaryLogWriter
 import com.lsmt.log.CountingInputStream
 import com.lsmt.log.Header
 import com.lsmt.table.ByteBufferInputStream
-import com.lsmt.table.SSTableMetadata
-import com.lsmt.table.StandardTableBuffer
+import com.lsmt.manifest.SSTableMetadata
+import com.lsmt.cache.StandardTableBuffer
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.MappedByteBuffer

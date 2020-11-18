@@ -1,5 +1,6 @@
 package com.lsmt
 
+import com.lsmt.cache.TableCache
 import com.lsmt.core.*
 import com.lsmt.domain.Key
 import com.lsmt.domain.StandardLevel
@@ -7,6 +8,9 @@ import com.lsmt.log.BinaryLogWriter
 import com.lsmt.log.SynchronizedFileGenerator
 import com.lsmt.log.createLogReader
 import com.lsmt.log.createWalManager
+import com.lsmt.manifest.BinaryManifestReader
+import com.lsmt.manifest.BinaryManifestWriter
+import com.lsmt.manifest.StandardManifestManager
 import com.lsmt.table.*
 import java.util.*
 

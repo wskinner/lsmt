@@ -1,5 +1,6 @@
 package com.lsmt.table
 
+import com.lsmt.cache.TableBuffer
 import com.lsmt.domain.Entry
 import com.lsmt.domain.Key
 import com.lsmt.domain.Record

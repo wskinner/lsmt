@@ -1,6 +1,6 @@
 package com.lsmt.core
 
-import com.lsmt.table.LRUPreCache
+import com.lsmt.cache.LRUPreCache
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
 import java.util.*

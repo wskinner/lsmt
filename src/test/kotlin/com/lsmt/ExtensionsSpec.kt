@@ -1,7 +1,7 @@
 package com.lsmt
 
-import com.lsmt.table.SSTableMetadata
-import com.lsmt.table.TableCache
+import com.lsmt.manifest.SSTableMetadata
+import com.lsmt.cache.TableCache
 import com.lsmt.table.merge
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec

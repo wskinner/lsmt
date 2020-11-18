@@ -1,7 +1,7 @@
 package com.lsmt.domain
 
 import com.lsmt.overlaps
-import com.lsmt.table.SSTableMetadata
+import com.lsmt.manifest.SSTableMetadata
 import com.lsmt.table.TableKey
 import com.lsmt.table.TableKeyComparator
 import mu.KotlinLogging
