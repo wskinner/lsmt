@@ -20,6 +20,8 @@ gradle test
 # Limitations
 * The database is not thread-safe. If you need to read and write from multiple threads, you must handle synchronization yourself.
 * No client-server support. 
+* Currently, the LSM tree index stores key ranges in a naive way. Read and merge performance will suffer. I plan to replace this with an interval tree for more efficient queries.
+* Failure recovery is not yet implemented.
 
 # Performance
 JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling and tuning, but the system is architected with performance in mind. 
