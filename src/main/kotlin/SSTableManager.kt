@@ -1,6 +1,7 @@
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 
 // Keeps track of the SSTable files
@@ -24,6 +25,7 @@ class StandardSSTableManager(
     private val serializer: Serializer
 ) : SSTableManager {
     private val threadPool: ExecutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2)
+    private val tableCounter = AtomicInteger(nextSSTable())
 
     init {
         if (!rootDirectory.exists()) {
@@ -58,6 +60,10 @@ class StandardSSTableManager(
     }
 
     private fun nextTableFile(): File = synchronized(this) {
+        return File(rootDirectory, PREFIX + (tableCounter.getAndIncrement()))
+    }
+
+    private fun nextSSTable(): Int {
         var max = 0
         rootDirectory.list { _, name ->
             name?.startsWith(PREFIX) ?: false
@@ -66,7 +72,7 @@ class StandardSSTableManager(
             max = max(max, num)
         }
 
-        return File(rootDirectory, PREFIX + (max + 1))
+        return max
     }
 
     companion object {
