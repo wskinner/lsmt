@@ -10,7 +10,7 @@ fun test(times: Int, ops: Int, tree: LogStructuredMergeTree) {
         val start = System.nanoTime()
         for (i in 1..ops) {
             tree.put(
-                "person$i", mapOf(
+                "person$i", sortedMapOf(
                     "name" to "will",
                     "age" to 29
                 )

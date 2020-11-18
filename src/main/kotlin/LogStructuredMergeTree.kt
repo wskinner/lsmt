@@ -1,15 +1,16 @@
+import java.util.*
 
 interface LogStructuredMergeTree : LSMRunnable {
-    fun put(key: String, value: Map<String, Any>)
+    fun put(key: String, value: SortedMap<String, Any>)
 
-    fun get(key: String): Map<String, Any>?
+    fun get(key: String): SortedMap<String, Any>?
 
     fun delete(key: String)
 }
 
 data class Record(
     val sequence: Long,
-    val value: Map<String, Any>
+    val value: SortedMap<String, Any>
 )
 
 class StandardLogStructuredMergeTree(
@@ -21,7 +22,7 @@ class StandardLogStructuredMergeTree(
 
     private var memTable = memTableFactory()
 
-    override fun put(key: String, value: Map<String, Any>) {
+    override fun put(key: String, value: SortedMap<String, Any>) {
         val seq = writeAheadLog.append(key, value)
         memTable.put(key, Record(seq, value))
 
@@ -33,7 +34,7 @@ class StandardLogStructuredMergeTree(
         }
     }
 
-    override fun get(key: String): Map<String, Any>? = memTable.get(key) ?: ssTable.get(key)
+    override fun get(key: String): SortedMap<String, Any>? = memTable.get(key) ?: ssTable.get(key)
 
     override fun delete(key: String) {
         TODO("Not yet implemented")

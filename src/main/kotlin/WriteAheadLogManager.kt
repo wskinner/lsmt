@@ -5,10 +5,11 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
+import java.util.*
 
 interface WriteAheadLogManager : LSMRunnable {
     // Append a record to the log.
-    fun append(key: String, value: Map<String, Any>): Long
+    fun append(key: String, value: SortedMap<String, Any>): Long
 
     // Restore the memtable from the log
     fun restore(): MemTable
@@ -27,7 +28,7 @@ class StandardWriteAheadLogManager(
     private var sequence: Long = -1
 
     // Not thread safe!
-    override fun append(key: String, value: Map<String, Any>): Long {
+    override fun append(key: String, value: SortedMap<String, Any>): Long {
         val seq = sequence++
         bos.write(longToBytes(seq))
         bos.write(key.toByteArray(CHARSET))

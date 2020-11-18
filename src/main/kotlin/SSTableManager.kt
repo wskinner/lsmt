@@ -1,4 +1,5 @@
 import java.io.File
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -8,7 +9,7 @@ import kotlin.math.max
 interface SSTableManager : LSMRunnable {
 
     // Get a value from the on-disk storage.
-    fun get(key: String): Map<String, Any>?
+    fun get(key: String): SortedMap<String, Any>?
 
     // Add a new SSTable.
     fun addTable(memTable: MemTable)
@@ -43,7 +44,7 @@ class StandardSSTableManager(
         }
     }
 
-    override fun get(key: String): Map<String, Any>? = getYoung(key) ?: getOld(key)
+    override fun get(key: String): SortedMap<String, Any>? = getYoung(key) ?: getOld(key)
 
     override fun addTable(memTable: MemTable) {
         val file = nextTableFile()
@@ -71,9 +72,9 @@ class StandardSSTableManager(
         return File(rootDirectory, PREFIX + (tableCounter.getAndIncrement()))
     }
 
-    private fun getYoung(key: String): Map<String, Any>? {
+    private fun getYoung(key: String): SortedMap<String, Any>? {
         var maxSeq = 0L
-        var value: Map<String, Any>? = null
+        var value: SortedMap<String, Any>? = null
         // Search level 0
         manifest.tables()[0]?.forEach { tableMeta ->
             if (tableMeta.keyRange.contains(key)) {
@@ -90,7 +91,7 @@ class StandardSSTableManager(
         return value
     }
 
-    private fun getOld(key: String): Map<String, Any>? {
+    private fun getOld(key: String): SortedMap<String, Any>? {
         manifest.tables().forEach { (_, tableMetas) ->
             tableMetas.forEach { tableMeta ->
                 if (tableMeta.keyRange.contains(key)) {
