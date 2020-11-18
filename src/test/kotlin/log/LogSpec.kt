@@ -5,6 +5,7 @@ import io.kotlintest.specs.StringSpec
 import java.util.*
 
 class LogSpec : StringSpec({
+
     "log serialization and deserialization of a single full record" {
         val file = createTempFile()
         val wal = BinaryWriteAheadLogManager(file.toPath())
@@ -28,6 +29,8 @@ class LogSpec : StringSpec({
     }
 
     "log serialization and deserialization of a multi part record" {
+        val random = Random(0)
+
         val file = createTempFile()
         val wal = BinaryWriteAheadLogManager(file.toPath())
         wal.start()
@@ -35,7 +38,7 @@ class LogSpec : StringSpec({
         val value = TreeMap<String, Any>()
 
         val randomBytes = ByteArray(BinaryWriteAheadLogManager.blockSize * 3 + 25)
-        Random().nextBytes(randomBytes)
+        random.nextBytes(randomBytes)
         val value3 = Base64.getEncoder().encodeToString(randomBytes)
         wal.use {
             value["key1"] = 1
@@ -68,5 +71,39 @@ class LogSpec : StringSpec({
         deserialized[0].first shouldBe key
         val deserializedValue = deserialized[0].second
         deserializedValue.size shouldBe 0
+    }
+
+    "log serialization and deserialization of several records" {
+        val random = Random(0)
+
+        val file = createTempFile()
+        val wal = BinaryWriteAheadLogManager(file.toPath())
+        wal.start()
+
+
+        val entries = (0..4).map {
+            val key = "key$it"
+            val value = TreeMap<String, Any>()
+            val randomBytes = ByteArray(BinaryWriteAheadLogManager.blockSize * random.nextInt(3) + 25)
+            random.nextBytes(randomBytes)
+            value["key0"] = 1
+            value["key1"] = 10F
+            value["key2"] = 100L
+            value["key3"] = 1000.123
+            value["key4"] = Base64.getEncoder().encodeToString(randomBytes)
+            key to value
+        }
+
+        wal.use {
+            entries.forEach {
+                wal.append(it.first, it.second)
+            }
+        }
+
+        val deserialized = wal.read()
+        entries.zip(deserialized).forEach {
+            it.second.first shouldBe it.first.first
+            it.second.second shouldBe it.second.second
+        }
     }
 })

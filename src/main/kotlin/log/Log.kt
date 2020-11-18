@@ -42,46 +42,57 @@ class BinaryWriteAheadLogManager(
      * the remaining bytes must be zeroes.
      */
     override fun append(key: String, value: SortedMap<String, Any>): Long {
-        val record = encode(key, value)
-        val appendLength = 4 + 4 + 1 + record.size
+        // A header is always 9 bytes.
+
+        val data = encode(key, value)
+        var length: Int
+        var check: Int
+        var type: Int
+        var offset = 0
+
+        length = data.size
         var remainingBytes = writeTrailer()
 
-        if (appendLength <= remainingBytes) {
-            os.write(checksum(full, record).toByteArray())
-            os.write(appendLength.toByteArray())
-            os.write(full)
-            os.write(record)
+        if (length <= remainingBytes + 9) {
+            type = full
+            check = checksum(type, data)
+            write(check, length, type, data, offset)
             return 0L
         } else {
-            var offset = 0
-            var length = remainingBytes - 9
-            os.write(checksum(first, record, offset, length).toByteArray())
-            os.write(length.toByteArray())
-            os.write(first)
-            os.write(record, offset, length)
+            length = remainingBytes
+            type = first
+            check = checksum(type, data, offset, length)
+            write(check, length, type, data, offset)
 
             do {
                 remainingBytes = writeTrailer()
+
+                // Here, length is the number of bytes written in the last write.
                 offset += length
-                length = remainingBytes - 9
 
-                length = min(length, record.size - offset)
+                // We'll either write all the remaining bytes, or write to the end of the current block.
+                length = min(remainingBytes - 9, data.size - offset)
 
-                if (record.size > offset + length) {
-                    os.write(checksum(middle, record, offset, length).toByteArray())
-                    os.write(length.toByteArray())
-                    os.write(middle)
-                    os.write(record, offset, length)
+                type = if (data.size > offset + length) {
+                    middle
                 } else {
-                    os.write(checksum(last, record, offset, length).toByteArray())
-                    os.write(length.toByteArray())
-                    os.write(last)
-                    os.write(record, offset, length)
+                    last
                 }
-            } while (record.size > offset + length)
+
+                check = checksum(type, data, offset, length)
+                write(check, length, type, data, offset)
+            } while (data.size > offset + length)
         }
 
         return 0L
+    }
+
+    private fun write(check: Int, length: Int, type: Int, data: ByteArray, offset: Int) {
+        println("Writing data:\n\tcheck: $check\n\tlength: $length\n\ttype: $type\n\tdata: $data\n\toffset: $offset")
+        os.write(check.toByteArray())
+        os.write(length.toByteArray())
+        os.write(type)
+        os.write(data, offset, length)
     }
 
     /**
@@ -108,7 +119,7 @@ class BinaryWriteAheadLogManager(
         os = Files.newOutputStream(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
     }
 
-    private fun checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = 0): Int {
+    private fun checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = data.size): Int {
         crC32C.reset()
         crC32C.update(type)
         crC32C.update(data, offset, length)
@@ -127,17 +138,18 @@ class BinaryWriteAheadLogManager(
 
     fun read(): List<Pair<String, SortedMap<String, Any>>> {
         val result = mutableListOf<Pair<String, SortedMap<String, Any>>>()
-        filePath.toFile().inputStream().use {
+        filePath.toFile().inputStream().counting().use {
             while (it.available() > 0) {
                 val record = it.readRecord()
                 result.add(record)
+
             }
         }
 
         return result
     }
 
-    private fun InputStream.readHeader(): Header {
+    private fun CountingInputStream.readHeader(): Header {
         val crc = readNBytes(4).toInt()
         val length = readNBytes(4).toInt()
         val type = read()
@@ -145,7 +157,7 @@ class BinaryWriteAheadLogManager(
         return Header(crc, length, type)
     }
 
-    private fun InputStream.readData(header: Header): ByteArray {
+    private fun CountingInputStream.readData(header: Header): ByteArray {
         val data = readNBytes(header.length)
         if (checksum(header.type, data) != header.crc) {
             println("Corrupt record")
@@ -153,8 +165,9 @@ class BinaryWriteAheadLogManager(
         return data
     }
 
-    fun InputStream.readRecord(): Pair<String, SortedMap<String, Any>> {
+    fun CountingInputStream.readRecord(): Pair<String, SortedMap<String, Any>> {
         var header = readHeader()
+        println("Reading record: type=${header.type}, length=${header.length}")
         var data = readData(header)
 
         if (header.type == full) {
@@ -166,6 +179,13 @@ class BinaryWriteAheadLogManager(
         do {
             header = readHeader()
             allData.add(readData(header))
+
+            val bytesRemainingInBlock = (blockSize - (bytesRead % blockSize)).toInt()
+            if (bytesRemainingInBlock < 9) {
+                // We'll never start a new record with < 9 bytes remaining, since the header will not fit in a
+                // single block. The remaining bytes will have been filled with zero padding. Skip them.
+                readNBytes(bytesRemainingInBlock)
+            }
         } while (header.type != last)
 
         return ArraysInputStream(allData).decode()
