@@ -23,7 +23,13 @@ class StandardSSTableManager(
     private val rootDirectory: File,
     private val serializer: Serializer
 ) : SSTableManager {
-    private val threadPool: ExecutorService = Executors.newCachedThreadPool()
+    private val threadPool: ExecutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2)
+
+    init {
+        if (!rootDirectory.exists()) {
+            rootDirectory.mkdir()
+        }
+    }
 
     override fun get(key: String): Map<String, Any>? {
         TODO("Not yet implemented")

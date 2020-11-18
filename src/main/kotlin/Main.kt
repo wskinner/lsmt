@@ -8,8 +8,6 @@ fun test(times: Int, ops: Int, tree: LogStructuredMergeTree) {
     for (run in 1..times) {
         val start = System.nanoTime()
         for (i in 1..ops) {
-            if (i % 10000 == 0)
-                println("$i")
             tree.put(
                 "person$i", mapOf(
                     "name" to "will",
@@ -43,7 +41,7 @@ fun main() {
     ).apply { start() }
 
     thread(start = true) {
-        test(5, 100000, tree)
+        test(10, 500_0000, tree)
     }.join()
 
 //    print("Reads")

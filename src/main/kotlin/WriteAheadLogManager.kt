@@ -1,6 +1,8 @@
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.dslplatform.json.DslJson
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 
 interface WriteAheadLogManager : LSMRunnable {
     // Append a record to the log.
@@ -18,14 +20,15 @@ interface WriteAheadLogManager : LSMRunnable {
 class StandardWriteAheadLogManager(
     private val file: File
 ) : WriteAheadLogManager {
+    private val dslJson = DslJson<Any>()
     private lateinit var fos: FileOutputStream
+    private lateinit var bos: BufferedOutputStream
 
     override fun append(key: String, value: Map<String, Any>) {
-        fos.write(key.toByteArray(CHARSET))
-        fos.write(SEPARATOR)
-        fos.write(jacksonObjectMapper().writeValueAsBytes(value))
-        fos.write(LINE_SEPARATOR)
-//        fos.fd.sync()
+        bos.write(key.toByteArray(CHARSET))
+        bos.write(SEPARATOR)
+        dslJson.serialize(value, bos)
+        bos.write(LINE_SEPARATOR)
     }
 
     override fun restore(): MemTable {
@@ -34,6 +37,7 @@ class StandardWriteAheadLogManager(
 
     override fun start() {
         fos = FileOutputStream(file, true)
+        bos = fos.buffered()
     }
 
     override fun stop() {
