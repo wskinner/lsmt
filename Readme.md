@@ -26,14 +26,21 @@ gradle test
 # Performance
 JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling and tuning, but the system is architected with performance in mind.
 
-## Latest benchmark
+## Latest benchmark (Macbook Pro)
 ```text
 Benchmark                      Mode  Cnt        Score        Error  Units
 RandomReads.singleRead        thrpt   10   329727.983 ± 136288.137  ops/s
-SequentialReads.singleRead    thrpt   10  2814174.762 ± 558886.383  ops/s
 RandomWrites.singleWrite      thrpt   10   288315.945 ± 287201.198  ops/s
+SequentialReads.singleRead    thrpt   10  2814174.762 ± 558886.383  ops/s
 SequentialWrites.singleWrite  thrpt   10  1223974.229 ±  74163.247  ops/s
 ```
+
+## Latest benchmark (12-core desktop)
+Benchmark                      Mode  Cnt        Score         Error  Units
+RandomReads.singleRead        thrpt   10   352910.794 ±    3800.808  ops/s
+RandomWrites.singleWrite      thrpt   10   406042.859 ±  140205.783  ops/s
+SequentialReads.singleRead    thrpt   10  4590484.075 ± 1641626.408  ops/s
+SequentialWrites.singleWrite  thrpt   10  1363217.373 ±   28903.651  ops/s
 
 ## Running benchmarks
 Benchmarks can be run with

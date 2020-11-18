@@ -29,7 +29,8 @@ open class RandomReads {
 
     @State(Scope.Thread)
     open class ThreadState {
-        val keyIterator: Iterator<Key> = randomKeySequence(keyRangeSize).iterator()
+        private val currentThread = Thread.currentThread().id
+        val keyIterator: Iterator<Key> = randomKeySequence(keyRangeSize, currentThread).iterator()
     }
 
     @Setup
@@ -59,8 +60,8 @@ open class RandomReads {
     }
 }
 
-fun randomKeySequence(max: Int) = sequence {
-    val random = Random(0)
+fun randomKeySequence(max: Int, seed: Long) = sequence {
+    val random = Random(seed)
     while (true) {
         val key = (random.nextLong() % max)
             .toByteArray(littleEndian = false)
