@@ -161,7 +161,7 @@ class SSTableManagerSpec : StringSpec({
         val entries = fillTree(tree, shuffled = true)
         tree.close()
         (manifest.level(0).size()) shouldBe 3
-        (manifest.level(1).size()) shouldBe 11
+        (manifest.level(1).size()) shouldBe 10
 
         for (entry in entries) {
             tree.get(entry.first) shouldBe entry.second
