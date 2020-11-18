@@ -1,8 +1,8 @@
 import com.dslplatform.json.DslJson
 import java.io.BufferedOutputStream
 import java.io.File
-import java.io.FileOutputStream
-import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 
 interface WriteAheadLogManager : LSMRunnable {
     // Append a record to the log.
@@ -21,7 +21,6 @@ class StandardWriteAheadLogManager(
     private val file: File
 ) : WriteAheadLogManager {
     private val dslJson = DslJson<Any>()
-    private lateinit var fos: FileOutputStream
     private lateinit var bos: BufferedOutputStream
 
     override fun append(key: String, value: Map<String, Any>) {
@@ -29,6 +28,7 @@ class StandardWriteAheadLogManager(
         bos.write(SEPARATOR)
         dslJson.serialize(value, bos)
         bos.write(LINE_SEPARATOR)
+        bos.flush()
     }
 
     override fun restore(): MemTable {
@@ -36,12 +36,14 @@ class StandardWriteAheadLogManager(
     }
 
     override fun start() {
-        fos = FileOutputStream(file, true)
-        bos = fos.buffered()
+        if (!file.exists())
+            file.createNewFile()
+
+        bos = Files.newOutputStream(file.toPath(), StandardOpenOption.APPEND).buffered()
     }
 
     override fun stop() {
-        fos.close()
+        bos.close()
     }
 
     companion object {

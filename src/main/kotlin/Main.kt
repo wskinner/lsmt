@@ -41,7 +41,7 @@ fun main() {
     ).apply { start() }
 
     thread(start = true) {
-        test(10, 500_0000, tree)
+        test(10, 100_0000, tree)
     }.join()
 
 //    print("Reads")
