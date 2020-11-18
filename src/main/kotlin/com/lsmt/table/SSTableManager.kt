@@ -59,8 +59,6 @@ class StandardSSTableManager(
     private val tableController: SSTableController
 ) : SSTableManager {
 
-    private val cachedTableReader = tableReader
-
     // This pool is responsible for making new SSTable files from log files. This task is parallelizable with no
     // contention. Because it is IO bound, it is safe to create many threads here.
     private val tableCreationPool: ExecutorService =
@@ -117,7 +115,7 @@ class StandardSSTableManager(
     private fun getYoung(key: String): Record? =
         manifest.level(0)
             .get(key)
-            .map { it.id to cachedTableReader.read(it, key) }
+            .map { it.id to tableController.read(it, key) }
             .maxBy { it.first }
             ?.second
 
@@ -139,7 +137,7 @@ class StandardSSTableManager(
                 // For levels except the young level, there must be at most one table whose range includes each key.
                 val table = it.get(key).firstOrNull()
                 if (table != null) {
-                    return cachedTableReader.read(table, key)
+                    return tableController.read(table, key)
                 }
             }
 

@@ -17,25 +17,28 @@ import java.util.concurrent.TimeUnit
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
-@Threads(1)
-@Measurement(iterations = 1)
+@Threads(4)
+@Measurement(iterations = 10)
 @Fork(1)
 @Warmup(iterations = 1)
 open class SequentialReads {
     private var tree: LogStructuredMergeTree? = null
-    private var keyIterator: Iterator<String>? = null
+
+    @State(Scope.Thread)
+    open class ThreadState {
+        val keyIterator: Iterator<String> = keySeq().iterator()
+    }
 
     @Setup
     fun setup() {
         tree = treeFactory().apply { fillTree(keySeq()) }
         // Synchronize on the completion of compaction and SSTable creation.
         tree?.close()
-        keyIterator = keySeq().iterator()
     }
 
     @Benchmark
-    fun singleRead(): Record? {
-        return tree!!.get(keyIterator!!.next())
+    fun singleRead(state: ThreadState): Record? {
+        return tree!!.get(state.keyIterator.next())
     }
 
     companion object {
@@ -56,14 +59,10 @@ fun LogStructuredMergeTree.fillTree(keySeq: Sequence<String>) {
     val random = Random(0)
 
     for (key in keySeq.take(keyRangeSize)) {
-        val value = TreeMap<String, Any>()
-        val randomBytes = ByteArray(100)
-        random.nextBytes(randomBytes)
-        value["key0"] = 1
-        value["key1"] = 10F
-        value["key2"] = 100L
-        value["key3"] = 1000.123
-        value["key4"] = Base64.getEncoder().encodeToString(randomBytes)
+        val value = ByteArray(100).apply {
+            random.nextBytes(this)
+        }
+
         put(key, value)
     }
 }

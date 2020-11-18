@@ -26,7 +26,7 @@ class TableCache(
 
     fun read(table: SSTableMetadata, key: String): Record? {
         val ops = operations.incrementAndGet()
-        if (ops % 1000 == 0L) {
+        if (ops % 100000 == 0L) {
             logMetrics()
         }
 

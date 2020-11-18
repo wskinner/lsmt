@@ -18,6 +18,8 @@ interface SSTableController : AutoCloseable {
      */
     fun merge(level: Int)
 
+    fun read(table: SSTableMetadata, key: String): Record?
+
     /**
      * Create a new table file from the log and return the metadata. The caller is responsible for updating the index.
      */
@@ -152,6 +154,8 @@ class StandardSSTableController(
             addCleanupTask(level)
         }
     }
+
+    override fun read(table: SSTableMetadata, key: String): Record? = tableCache.read(table, key)
 
     /**
      * Move a table from its current level to the next level. We can safely do this when a table is to be compacted, but

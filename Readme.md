@@ -1,7 +1,7 @@
 **lsmt is a key-value store for the JVM, inspired by [LevelDB](https://github.com/google/leveldb)**
 
 # Features
-* Keys are `Strings`, values are `Maps` of primitives.
+* Keys are `Strings`, values are arrays of bytes.
 * The basic operations are `Put(key,value)`, `Get(key)`, `Delete(key)`.
 * No external dependencies except Logback and Kotlin-Logging
 
@@ -29,7 +29,8 @@ JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling a
 ## Latest benchmark
 ```text
 Benchmark                      Mode  Cnt       Score       Error  Units
-SequentialWrites.singleWrite  thrpt    5  194342.643 ± 48739.356  ops/s
+SequentialReads.singleRead    thrpt   10  195979.981 ± 55956.806  ops/s
+SequentialWrites.singleWrite  thrpt    2  415899.844              ops/s
 ```
 ## Running benchmarks
 Benchmarks can be run with
