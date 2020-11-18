@@ -13,11 +13,11 @@ import java.util.concurrent.atomic.AtomicLong
 interface LogStructuredMergeTree : AutoCloseable {
     fun start()
 
-    fun put(key: String, value: Record)
+    fun put(key: Key, value: Record)
 
-    fun get(key: String): Record?
+    fun get(key: Key): Record?
 
-    fun delete(key: String)
+    fun delete(key: Key)
 }
 
 class StandardLogStructuredMergeTree(
@@ -41,7 +41,7 @@ class StandardLogStructuredMergeTree(
     /**
      * Add a key, value pair to the database. Not thread safe.
      */
-    override fun put(key: String, value: Record) {
+    override fun put(key: Key, value: Record) {
         writeAheadLog.append(key, value)
         memTable.put(key, value)
 
@@ -57,7 +57,7 @@ class StandardLogStructuredMergeTree(
         }
     }
 
-    override fun get(key: String): Record? {
+    override fun get(key: Key): Record? {
         val result = memTable.get(key) ?: ssTable.get(key)
         val count = readCounter.incrementAndGet()
         if (count % 10_000_000 == 0L) {
@@ -66,7 +66,7 @@ class StandardLogStructuredMergeTree(
         return result
     }
 
-    override fun delete(key: String) {
+    override fun delete(key: Key) {
         writeAheadLog.append(key, null)
         memTable.delete(key)
     }

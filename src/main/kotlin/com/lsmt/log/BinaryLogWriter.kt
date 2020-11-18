@@ -1,5 +1,6 @@
 package com.lsmt.log
 
+import com.lsmt.core.Key
 import com.lsmt.core.Record
 import com.lsmt.core.checksum
 import com.lsmt.toByteArray
@@ -20,7 +21,7 @@ open class BinaryLogWriter(
     protected var totalBytes: Int = 0
     protected var closed = false
 
-    override fun append(key: String, value: Record?): Int {
+    override fun append(key: Key, value: Record?): Int {
         // A header is always 9 bytes.
         val data = encode(key, value)
         return appendBytes(data)

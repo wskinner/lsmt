@@ -1,11 +1,11 @@
 package com.lsmt
 
 import Bytes
+import com.lsmt.core.Key
 import com.lsmt.core.KeyRange
 import com.lsmt.core.Record
 import com.lsmt.log.BinaryLogWriter
 import com.lsmt.log.CountingInputStream
-import com.lsmt.log.DELETE_MASK
 import com.lsmt.log.Header
 import com.lsmt.table.ByteBufferInputStream
 import com.lsmt.table.SSTableMetadata
@@ -14,15 +14,15 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.MappedByteBuffer
 
-fun Int.toByteArray(): ByteArray = Bytes.intToBytes(this)
-fun Long.toByteArray(): ByteArray = Bytes.longToBytes(this)
-fun Float.toByteArray(): ByteArray = Bytes.floatToBytes(this)
-fun Double.toByteArray(): ByteArray = Bytes.doubleToBytes(this)
+fun Int.toByteArray(littleEndian: Boolean = true): ByteArray = Bytes.intToBytes(this, littleEndian)
+fun Long.toByteArray(littleEndian: Boolean = true): ByteArray = Bytes.longToBytes(this, littleEndian)
+fun Float.toByteArray(littleEndian: Boolean = true): ByteArray = Bytes.floatToBytes(this, littleEndian)
+fun Double.toByteArray(littleEndian: Boolean = true): ByteArray = Bytes.doubleToBytes(this, littleEndian)
 
-fun ByteArray.toInt(): Int = Bytes.bytesToInt(this)
-fun ByteArray.toLong(): Long = Bytes.bytesToLong(this)
-fun ByteArray.toFloat(): Float = Bytes.bytesToFloat(this)
-fun ByteArray.toDouble(): Double = Bytes.bytesToDouble(this)
+fun ByteArray.toInt(littleEndian: Boolean = true): Int = Bytes.bytesToInt(this, littleEndian)
+fun ByteArray.toLong(littleEndian: Boolean = true): Long = Bytes.bytesToLong(this, littleEndian)
+fun ByteArray.toFloat(littleEndian: Boolean = true): Float = Bytes.bytesToFloat(this, littleEndian)
+fun ByteArray.toDouble(littleEndian: Boolean = true): Double = Bytes.bytesToDouble(this, littleEndian)
 
 fun InputStream.counting() = CountingInputStream(this)
 fun InputStream.readInt() = readNBytes(4).toInt()
@@ -36,17 +36,17 @@ fun Record.toSSTableMetadata(): SSTableMetadata? {
     val pathLength = stream.readInt()
     val path = stream.readString(pathLength)
     val minKeyLength = stream.readInt()
-    val minKey = stream.readString(minKeyLength)
+    val minKey = stream.readNBytes(minKeyLength)
     val maxKeyLength = stream.readInt()
-    val maxKey = stream.readString(maxKeyLength)
+    val maxKey = stream.readNBytes(maxKeyLength)
     val level = stream.readInt()
     val id = stream.readLong()
     val fileSize = stream.readInt()
 
     return SSTableMetadata(
         path,
-        minKey,
-        maxKey,
+        minKey.toKey(),
+        maxKey.toKey(),
         level,
         id,
         fileSize
@@ -58,8 +58,6 @@ infix fun KeyRange.overlaps(other: KeyRange): Boolean = other.contains(start) ||
 fun MappedByteBuffer.tableBuffer(table: SSTableMetadata) = StandardTableBuffer(this, table)
 
 fun ByteBuffer.readInt(): Int = readNBytes(4).toInt()
-
-fun ByteBuffer.readString(length: Int): String = readNBytes(length).decodeToString()
 
 fun ByteBuffer.readHeader(): Header {
     readTrailer()
@@ -90,73 +88,24 @@ fun ByteBuffer.readTrailer() {
     }
 }
 
-data class Key(val value: String, val isDelete: Boolean, val remainingBytes: Int)
-
 /**
- * Before calling this function, the position should be set to the first byte of a FIRST or FULL header.
- *
- * Returns the key and the number of bytes left to be read in the current record - either zero or a positive number.
- * // TODO (will) add CRC check
+ * Byte arrays are compared left to right. Bytes are interpreted as unsigned 8-bit integers.
+ * For arrays of the same length, compare each byte from left to right.
+ * For arrays of different lengths, compare each of the first n bytes, where n is minimum length between the two arrays.
+ * If the first n bytes are the same, the longer array is considered greater.
  */
-fun ByteBuffer.readKey(firstHeader: Header): Key? {
-    var header = firstHeader
-    val sizeArr = ByteArray(4)
-    var bytesRead = 0
-    if (header.length < 4) {
-        for (i in 0 until header.length)
-            sizeArr[i] = get()
-        bytesRead = header.length
-        header = readHeader()
+operator fun UByteArray.compareTo(other: UByteArray): Int {
+    val minLength = Integer.min(size, other.size)
+    for (i in 0 until minLength) {
+        val byteCmp = this[i].compareTo(other[i])
+        if (byteCmp != 0)
+            return byteCmp
     }
-
-    for (i in bytesRead until 4)
-        sizeArr[i] = get()
-
-    // The number of bytes left to read in the current record
-    val remainingBytes = header.length - 4 + bytesRead
-    val size = sizeArr.toInt()
-    val isDelete = size and DELETE_MASK < 0
-    val keySize = size and Integer.MAX_VALUE
-
-    val keyBytes = ByteArray(keySize)
-    var pos = 0
-    if (keySize < remainingBytes) {
-        val key = readString(keySize)
-        return Key(key, isDelete, remainingBytes - keySize)
-    }
-
-    System.arraycopy(
-        readNBytes(remainingBytes),
-        0,
-        keyBytes,
-        pos,
-        remainingBytes
-    )
-    pos += remainingBytes
-
-    while (pos < keySize) {
-        readTrailer()
-        header = readHeader()
-        if (header.length < keySize - pos) {
-            System.arraycopy(
-                readNBytes(header.length),
-                0,
-                keyBytes,
-                pos,
-                header.length
-            )
-            pos += header.length
-        } else {
-            System.arraycopy(
-                readNBytes(keySize - pos),
-                0,
-                keyBytes,
-                pos,
-                keySize - pos
-            )
-            return Key(keyBytes.decodeToString(), isDelete, header.length - (keySize - pos))
-        }
-    }
-
-    return null
+    return size - other.size
 }
+
+operator fun ByteArray.compareTo(other: ByteArray): Int = this.asUByteArray().compareTo(other.asUByteArray())
+
+fun ByteArray.toKey(): Key = Key(this.asUByteArray())
+
+fun UByteArray.toKey(): Key = Key(this)

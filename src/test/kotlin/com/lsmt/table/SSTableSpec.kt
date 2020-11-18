@@ -1,11 +1,12 @@
 package com.lsmt.table
 
+import com.lsmt.core.Key
 import com.lsmt.core.Record
-import com.lsmt.log.BinaryLogManager
+import com.lsmt.core.longBytesSeq
 import com.lsmt.log.SynchronizedFileGenerator
 import com.lsmt.log.createSSTableManager
+import com.lsmt.toKey
 import io.kotlintest.shouldBe
-import io.kotlintest.shouldNotBe
 import io.kotlintest.specs.StringSpec
 import java.util.*
 
@@ -15,11 +16,11 @@ class SSTableSpec : StringSpec({
         val sstableDir = createTempDir().apply { deleteOnExit() }
         val fileGenerator = SynchronizedFileGenerator(sstableDir, "sstable")
         val logManager = createSSTableManager(fileGenerator)
-        val expected = TreeMap<String, Record>()
+        val expected = TreeMap<Key, Record>()
         val data = ByteArray(100).apply {
             random.nextBytes(this)
         }
-        val key = "key"
+        val key = "key".toByteArray().toKey()
         expected[key] = data
 
         logManager.use { writer ->
@@ -48,13 +49,12 @@ class SSTableSpec : StringSpec({
         val sstableDir = createTempDir().apply { deleteOnExit() }
         val fileGenerator = SynchronizedFileGenerator(sstableDir, "sstable")
         val logManager = createSSTableManager(fileGenerator)
-        val expected = TreeMap<String, Record>()
-        for (i in 0..1000) {
+        val expected = TreeMap<Key, Record>()
+        for (key in longBytesSeq().take(1000)) {
             val data = ByteArray(100).apply {
                 random.nextBytes(this)
             }
-            val key = "key$i"
-            expected[key] = data
+            expected[key.toKey()] = data
         }
 
         logManager.use { writer ->
@@ -83,13 +83,12 @@ class SSTableSpec : StringSpec({
         val sstableDir = createTempDir().apply { deleteOnExit() }
         val fileGenerator = SynchronizedFileGenerator(sstableDir, "sstable")
         val logManager = createSSTableManager(fileGenerator)
-        val expected = TreeMap<String, Record>()
-        for (i in 0..1000) {
+        val expected = TreeMap<Key, Record>()
+        for (key in longBytesSeq().take(1000)) {
             val data = ByteArray(100).apply {
                 random.nextBytes(this)
             }
-            val key = "key$i"
-            expected[key] = data
+            expected[key.toKey()] = data
         }
 
         logManager.use { writer ->

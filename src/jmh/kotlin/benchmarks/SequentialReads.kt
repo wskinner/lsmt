@@ -1,9 +1,12 @@
 package benchmarks
 
 import benchmarks.SequentialReads.Companion.keyRangeSize
+import com.lsmt.core.Key
 import com.lsmt.core.LogStructuredMergeTree
 import com.lsmt.core.Record
+import com.lsmt.core.longBytesSeq
 import com.lsmt.table.StandardTableIterator
+import com.lsmt.toKey
 import org.openjdk.jmh.annotations.*
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -30,7 +33,7 @@ open class SequentialReads {
 
     @State(Scope.Thread)
     open class ThreadState {
-        val keyIterator: Iterator<String> = keySeq().iterator()
+        val keyIterator: Iterator<Key> = keySeq().iterator()
     }
 
     @Setup
@@ -42,7 +45,11 @@ open class SequentialReads {
 
     @TearDown
     fun metrics() {
-        println("totalSeekBytes=${StandardTableIterator.totalSeekBytes.get()} totalReads=${StandardTableIterator.totalReads.get()} averageSeekBytes = ${StandardTableIterator.totalSeekBytes.get().toDouble() / StandardTableIterator.totalReads.get()}")
+        println(
+            "totalSeekBytes=${StandardTableIterator.totalSeekBytes.get()} totalReads=${StandardTableIterator.totalReads.get()} averageSeekBytes = ${
+                StandardTableIterator.totalSeekBytes.get().toDouble() / StandardTableIterator.totalReads.get()
+            }"
+        )
     }
 
     @Benchmark
@@ -55,16 +62,9 @@ open class SequentialReads {
     }
 }
 
-fun keySeq(): Sequence<String> = sequence {
-    var i = 0L
-    while (i >= 0) {
-        val k = i % keyRangeSize
-        yield("abcdef$k")
-        i++
-    }
-}
+fun keySeq() = longBytesSeq().map { it.toKey() }
 
-fun LogStructuredMergeTree.fillTree(keySeq: Sequence<String>) {
+fun LogStructuredMergeTree.fillTree(keySeq: Sequence<Key>) {
     val random = Random(0)
 
     for (key in keySeq.take(keyRangeSize)) {

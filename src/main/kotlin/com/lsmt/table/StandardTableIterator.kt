@@ -1,12 +1,13 @@
 package com.lsmt.table
 
+import com.lsmt.core.Key
 import com.lsmt.log.BinaryLogWriter.Companion.FIRST
 import com.lsmt.log.BinaryLogWriter.Companion.FULL
 import com.lsmt.log.DELETE_MASK
 import com.lsmt.log.Header
 import com.lsmt.readHeader
 import com.lsmt.toInt
-import mu.KotlinLogging
+import com.lsmt.toKey
 import java.io.ByteArrayOutputStream
 import java.lang.Integer.min
 import java.nio.ByteBuffer
@@ -17,7 +18,7 @@ interface TableIterator {
      * Search for the key. If found and the record is a deletion, return null. If not found, return false. Otherwise
      * return true.
      */
-    fun seek(targetKey: String): Boolean?
+    fun seek(targetKey: Key): Boolean?
 
     /**
      * Return the value associated with the key. Caller must have previously called seek(), and seek() must have
@@ -113,15 +114,15 @@ class StandardTableIterator(
         return result
     }
 
-    private fun readKey(): Pair<String, Boolean> {
+    private fun readKey(): Pair<Key, Boolean> {
         val size = readNBytes(4).toInt()
         val isDelete = size and DELETE_MASK < 0
         val keySize = size and Integer.MAX_VALUE
-        val key = readNBytes(keySize).decodeToString()
-        return key to isDelete
+        val key = readNBytes(keySize)
+        return key.toKey() to isDelete
     }
 
-    override fun seek(targetKey: String): Boolean? {
+    override fun seek(targetKey: Key): Boolean? {
         totalReads.getAndIncrement()
         while (currentKeyDelete.first != targetKey && delegate.position() < dataLimit)
             advance()

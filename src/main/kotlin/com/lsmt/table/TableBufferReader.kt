@@ -1,11 +1,9 @@
 package com.lsmt.table
 
-import com.lsmt.core.BlockHandle
-import com.lsmt.core.BlockIndex
-import com.lsmt.core.Entry
-import com.lsmt.core.Record
+import com.lsmt.core.*
 import com.lsmt.readInt
-import com.lsmt.readString
+import com.lsmt.readNBytes
+import com.lsmt.toKey
 import java.nio.ByteBuffer
 
 class TableBufferReader(
@@ -14,10 +12,11 @@ class TableBufferReader(
     private val dataLimit: Int
 ) : TableBuffer {
 
-    private val lruIndex = LRUPreCache<String, BlockHandle>(10, readBlockIndex())
+    // TODO is this using contentEquals to compare?
+    private val lruIndex = LRUPreCache<Key, BlockHandle>(10, readBlockIndex())
 //    private val lruIndex = readBlockIndex()
 
-    override fun get(key: String): Record? {
+    override fun get(key: Key): Record? {
         val closestBlock = lruIndex.floorEntry(key).value
         return if (closestBlock == null) {
             null
@@ -32,7 +31,7 @@ class TableBufferReader(
      *
      * TODO (will) optimize this a bit.
      */
-    private fun getInBlock(targetKey: String, block: BlockHandle): Record? {
+    private fun getInBlock(targetKey: Key, block: BlockHandle): Record? {
         val iterator = StandardTableIterator(delegate, block.offset, dataLimit)
         val found = iterator.seek(targetKey)
         if (found == null || found == false) {
@@ -44,11 +43,11 @@ class TableBufferReader(
 
     override fun iterator(): Iterator<Entry> = SSTableIterator(delegate, dataLimit)
 
-    private fun readIndexEntry(): Pair<String, BlockHandle> {
+    private fun readIndexEntry(): Pair<Key, BlockHandle> {
         val offset = delegate.readInt()
         val keyLength = delegate.readInt()
-        val key = delegate.readString(keyLength)
-        return key to BlockHandle(offset)
+        val key = delegate.readNBytes(keyLength)
+        return key.toKey() to BlockHandle(offset)
     }
 
     private fun readBlockIndex(): BlockIndex {

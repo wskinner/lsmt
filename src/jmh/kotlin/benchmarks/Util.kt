@@ -3,9 +3,13 @@ package benchmarks
 import ch.qos.logback.classic.Level
 import com.lsmt.core.StandardLevel
 import com.lsmt.core.StandardLogStructuredMergeTree
-import com.lsmt.log.*
+import com.lsmt.log.BinaryLogWriter
+import com.lsmt.log.SynchronizedFileGenerator
+import com.lsmt.log.createLogReader
+import com.lsmt.log.createWalManager
 import com.lsmt.parseConfig
 import com.lsmt.table.*
+import com.lsmt.toByteArray
 import java.util.*
 
 fun treeFactory(): StandardLogStructuredMergeTree {

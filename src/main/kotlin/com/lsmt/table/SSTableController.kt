@@ -1,9 +1,6 @@
 package com.lsmt.table
 
-import com.lsmt.core.Entry
-import com.lsmt.core.Record
-import com.lsmt.core.TableEntry
-import com.lsmt.core.maxLevelSize
+import com.lsmt.core.*
 import com.lsmt.log.FileGenerator
 import com.lsmt.log.createSSTableManager
 import mu.KotlinLogging
@@ -19,7 +16,7 @@ interface SSTableController : AutoCloseable {
      */
     fun merge(level: Int)
 
-    fun read(table: SSTableMetadata, key: String): Record?
+    fun read(table: SSTableMetadata, key: Key): Record?
 
     /**
      * Create a new table file from the log and return the metadata. The caller is responsible for updating the index.
@@ -72,7 +69,7 @@ class StandardSSTableController(
         }
     }
 
-    override fun read(table: SSTableMetadata, key: String): Record? = tableCache.read(table, key)
+    override fun read(table: SSTableMetadata, key: Key): Record? = tableCache.read(table, key)
 
     private fun doMerge(level: Int, compactionId: Long) {
         val start = System.nanoTime()
@@ -108,10 +105,10 @@ class StandardSSTableController(
         try {
             val seq = merge(destTables.toList() + sourceTables)
 
-            var minKey: String? = null
-            var maxKey: String? = null
+            var minKey: Key? = null
+            var maxKey: Key? = null
 
-            fun addEntry(key: String, value: Record?) {
+            fun addEntry(key: Key, value: Record?) {
                 maxKey = key
 
                 if (minKey == null)

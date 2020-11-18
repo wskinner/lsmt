@@ -1,6 +1,7 @@
 package com.lsmt.table
 
 import com.lsmt.core.Entry
+import com.lsmt.core.Key
 import com.lsmt.core.Record
 import com.lsmt.log.FileGenerator
 import com.lsmt.log.createLogReader
@@ -26,7 +27,7 @@ class TableCache(
 
     private val tableWriteSemaphore = Semaphore(10, true)
 
-    fun read(table: SSTableMetadata, key: String): Record? {
+    fun read(table: SSTableMetadata, key: Key): Record? {
         val ops = operations.incrementAndGet()
         if (ops % 10_000_000 == 0L) {
             logMetrics()
@@ -59,7 +60,7 @@ class TableCache(
     }
 
     // TODO (will) split read and write buffers.
-    fun write(table: Long, key: String, value: Record?) {
+    fun write(table: Long, key: Key, value: Record?) {
 //        val map = cache.getOrPut(table, { TreeMap() })
 //        map[key] = value
     }
@@ -97,7 +98,7 @@ class TableCache(
             logger.debug("write() started")
             val logManager = createSSTableManager(sstableFileGenerator)
             logManager.use { writer ->
-                val result = TreeMap<String, Record?>()
+                val result = TreeMap<Key, Record?>()
                 log.forEach { entry ->
                     result[entry.key] = entry.value
                     writer.append(entry.key, entry.value)

@@ -1,6 +1,8 @@
 package com.lsmt.log
 
+import com.lsmt.core.longBytesSeq
 import com.lsmt.log.BinaryLogWriter.Companion.BLOCK_SIZE
+import com.lsmt.toKey
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
 import java.nio.file.Files
@@ -13,7 +15,7 @@ class LogSpec : StringSpec({
         val dir = createTempDir().apply { deleteOnExit() }
         val fileGenerator = SynchronizedFileGenerator(dir, "prefix")
         val wal = createWalManager(fileGenerator)
-        val key = "foobar"
+        val key = "foobar".toByteArray().toKey()
         val value = ByteArray(100).apply {
             random.nextBytes(this)
         }
@@ -36,7 +38,7 @@ class LogSpec : StringSpec({
         val dir = createTempDir().apply { deleteOnExit() }
         val fileGenerator = SynchronizedFileGenerator(dir, "prefix")
         val wal = createWalManager(fileGenerator)
-        val key = "foobar"
+        val key = "foobar".toByteArray().toKey()
         val value = ByteArray(BLOCK_SIZE * 3 + 25).apply {
             random.nextBytes(this)
         }
@@ -56,7 +58,7 @@ class LogSpec : StringSpec({
         val dir = createTempDir().apply { deleteOnExit() }
         val fileGenerator = SynchronizedFileGenerator(dir, "prefix")
         val wal = createWalManager(fileGenerator)
-        val key = "foobar"
+        val key = "foobar".toByteArray().toKey()
         val value = ByteArray(0)
         wal.use {
             wal.append(key, value)
@@ -75,12 +77,11 @@ class LogSpec : StringSpec({
         val fileGenerator = SynchronizedFileGenerator(dir, "prefix")
         val wal = createWalManager(fileGenerator)
 
-        val entries = (0..100).map {
-            val key = "key$it"
+        val entries = longBytesSeq().take(10).map { key ->
             val value = ByteArray(BLOCK_SIZE * random.nextInt(3) + 25).apply {
                 random.nextBytes(this)
             }
-            key to value
+            key.toKey() to value
         }
 
         wal.use {
@@ -110,7 +111,7 @@ class LogSpec : StringSpec({
             val data = ByteArray(dataSize)
             random.nextBytes(data)
 
-            val key = "key"
+            val key = "key".toByteArray().toKey()
             writer.use {
                 writer.append(key, data)
             }
@@ -137,7 +138,7 @@ class LogSpec : StringSpec({
         val data = ByteArray(dataSize)
         random.nextBytes(data)
 
-        val key = "foo"
+        val key = "foo".toByteArray().toKey()
         writer.use {
             writer.append(key, data)
         }

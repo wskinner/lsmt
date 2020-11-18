@@ -1,5 +1,6 @@
 package com.lsmt.table
 
+import com.lsmt.core.Key
 import com.lsmt.core.Record
 import com.lsmt.log.BinaryLogWriter
 import com.lsmt.toByteArray
@@ -12,9 +13,9 @@ class SSTableWriter(out: OutputStream) : BinaryLogWriter(out) {
     var dataLength = -1
 
     // After writing all blocks, this will contain the min key that begins in each block
-    private val blockBounds = HashMap<Int, String>()
+    private val blockBounds = HashMap<Int, Key>()
 
-    override fun append(key: String, value: Record?): Int {
+    override fun append(key: Key, value: Record?): Int {
         val remainingBytes = BLOCK_SIZE - (totalBytes % BLOCK_SIZE)
 
         // If there are fewer than 9 bytes remaining, the first header for this record will go in the next block.
@@ -62,8 +63,8 @@ class SSTableWriter(out: OutputStream) : BinaryLogWriter(out) {
         for ((blockId, minKey) in blockBounds) {
             val blockOffset = blockId * BLOCK_SIZE
             writeBytes(blockOffset.toByteArray())
-            writeBytes(minKey.length.toByteArray())
-            writeBytes(minKey.toByteArray())
+            writeBytes(minKey.size.toByteArray())
+            writeBytes(minKey.byteArray.asByteArray())
         }
     }
 }

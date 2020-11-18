@@ -22,7 +22,7 @@ interface Level : Iterable<SSTableMetadata> {
      * Return all tables whose key ranges overlap the key.
      * This operation should be backed by an interval tree and run in O(log n) TODO.
      */
-    fun get(key: String): List<SSTableMetadata>
+    fun get(key: Key): List<SSTableMetadata>
 
     /**
      * Return all tables whose keys overlap the range.
@@ -85,7 +85,7 @@ class StandardLevel(
      * TODO (will) use separate interfaces for level 0, where we might get more than one table for a get() query, and
      * other levels, where we'll get at most one table.
      */
-    override fun get(key: String): List<SSTableMetadata> {
+    override fun get(key: Key): List<SSTableMetadata> {
         if (id == 0)
             return map.values.filter { it.keyRange.contains(key) }
 

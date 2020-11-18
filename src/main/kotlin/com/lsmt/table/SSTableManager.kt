@@ -1,11 +1,10 @@
 package com.lsmt.table
 
 import com.lsmt.Config
+import com.lsmt.core.Key
 import com.lsmt.core.Record
 import mu.KotlinLogging
 import java.io.File
-import java.nio.ByteBuffer
-import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -20,7 +19,7 @@ interface SSTableManager : AutoCloseable {
      * Attempt to read a record from the tree. Without optimization, in the worst case, this will scan the metadata of
      * every table.
      */
-    fun get(key: String): Record?
+    fun get(key: Key): Record?
 
     /**
      * Create a new table from the log file.
@@ -68,7 +67,7 @@ class StandardSSTableManager(
         }
     }
 
-    override fun get(key: String): Record? = getYoung(key) ?: getOld(key)
+    override fun get(key: Key): Record? = getYoung(key) ?: getOld(key)
 
     /**
      * When the size of the young level exceeds a threshold, merge all young level files into all overlapping files in
@@ -133,7 +132,7 @@ class StandardSSTableManager(
      * scan all the tables that might contain the most recent record.
      *
      */
-    private fun getYoung(key: String): Record? =
+    private fun getYoung(key: Key): Record? =
         manifest.level(0)
             .get(key)
             .map { it.id to tableController.read(it, key) }
@@ -150,7 +149,7 @@ class StandardSSTableManager(
      * efficiently implemented using an interval tree, this will come to O(L * log N) where N is the number of tables.
      * If the level structure is implemented naively, this will come to O(N).
      */
-    private fun getOld(key: String): Record? {
+    private fun getOld(key: Key): Record? {
         for (level in manifest.levels()) {
             if (level.key != 0) {
                 // For levels except the young level, there must be at most one table whose range includes each key.

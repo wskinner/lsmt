@@ -2,11 +2,9 @@ package com.lsmt.table
 
 import ch.qos.logback.classic.Level.DEBUG
 import com.lsmt.Config
-import com.lsmt.core.Entry
-import com.lsmt.core.LogStructuredMergeTree
-import com.lsmt.core.StandardLevel
-import com.lsmt.core.StandardLogStructuredMergeTree
+import com.lsmt.core.*
 import com.lsmt.log.*
+import com.lsmt.toKey
 import com.lsmt.treeFactory
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
@@ -28,8 +26,8 @@ class SSTableManagerSpec : StringSpec({
                     tables.add(
                         SSTableMetadata(
                             sstableFileGenerator.path(handle.id).toString(),
-                            "",
-                            "",
+                            "".toByteArray().toKey(),
+                            "".toByteArray().toKey(),
                             0,
                             handle.id,
                             handle.totalBytes
@@ -42,8 +40,8 @@ class SSTableManagerSpec : StringSpec({
                 tables.add(
                     SSTableMetadata(
                         sstableFileGenerator.path(handle.id).toString(),
-                        "",
-                        "",
+                        "".toByteArray().toKey(),
+                        "".toByteArray().toKey(),
                         0,
                         handle.id,
                         handle.totalBytes
@@ -77,8 +75,8 @@ class SSTableManagerSpec : StringSpec({
                     tables.add(
                         SSTableMetadata(
                             sstableFileGenerator.path(handle.id).toString(),
-                            "",
-                            "",
+                            "".toByteArray().toKey(),
+                            "".toByteArray().toKey(),
                             0,
                             handle.id,
                             handle.totalBytes
@@ -91,8 +89,8 @@ class SSTableManagerSpec : StringSpec({
                 tables.add(
                     SSTableMetadata(
                         sstableFileGenerator.path(handle.id).toString(),
-                        "",
-                        "",
+                        "".toByteArray().toKey(),
+                        "".toByteArray().toKey(),
                         0,
                         handle.id,
                         handle.totalBytes
@@ -137,7 +135,7 @@ class SSTableManagerSpec : StringSpec({
         val entries = fillTree(tree)
         tree.close()
         (manifest.level(0).size()) shouldBe 3
-        (manifest.level(1).size()) shouldBe 10
+        (manifest.level(1).size()) shouldBe 5
 
         for (entry in entries) {
             tree.get(entry.first) shouldBe entry.second
@@ -148,12 +146,12 @@ class SSTableManagerSpec : StringSpec({
         val random = Random(0)
 
         val tree = treeFactory()
-        for (i in 1..100) {
+        for (key in longBytesSeq().take(100)) {
             val value = ByteArray(random.nextInt(1000) + 5).apply {
                 random.nextBytes(this)
             }
             tree.put(
-                "person$i", value
+                key.toKey(), value
             )
         }
         tree.close()
@@ -201,8 +199,9 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
 
 fun entrySeq() = sequence<Entry> {
     val random = Random(0)
-    for (i in 0..200_000) {
-        val key = "key$i"
+    for (key in longBytesSeq()
+        .map { it.toKey() }
+        .take(200_000)) {
         val value = ByteArray(random.nextInt(200) + 25).apply {
             random.nextBytes(this)
         }

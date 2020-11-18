@@ -1,9 +1,10 @@
 package com.lsmt
 
-import com.lsmt.core.LogStructuredMergeTree
-import com.lsmt.core.StandardLevel
-import com.lsmt.core.StandardLogStructuredMergeTree
-import com.lsmt.log.*
+import com.lsmt.core.*
+import com.lsmt.log.BinaryLogWriter
+import com.lsmt.log.SynchronizedFileGenerator
+import com.lsmt.log.createLogReader
+import com.lsmt.log.createWalManager
 import com.lsmt.table.*
 import java.util.*
 
@@ -17,16 +18,7 @@ fun parseConfig(): Config {
 
 const val keyRangeSize = 10_000_000
 
-fun keySeq(): Sequence<String> = sequence {
-    var i = 0L
-    while (i >= 0) {
-        val k = i % keyRangeSize
-        yield("abcdef$k")
-        i++
-    }
-}
-
-fun LogStructuredMergeTree.fillTree(keySeq: Sequence<String>) {
+fun LogStructuredMergeTree.fillTree(keySeq: Sequence<Key>) {
     val random = Random(0)
 
     for (key in keySeq.take(keyRangeSize)) {
@@ -40,7 +32,7 @@ fun LogStructuredMergeTree.fillTree(keySeq: Sequence<String>) {
 
 fun main() {
     val tree = treeFactory()
-    tree.fillTree(keySeq())
+    tree.fillTree(longBytesSeq().map { it.toKey() })
     tree.close()
 }
 

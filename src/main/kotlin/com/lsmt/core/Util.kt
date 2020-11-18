@@ -12,14 +12,6 @@ fun makeFile(rootDirectory: File, prefix: String, id: Long): Path =
         "$prefix$id"
     ).toPath()
 
-fun min(a: String, b: String): String =
-    if (a < b) a
-    else b
-
-fun max(a: String, b: String) =
-    if (a > b) a
-    else b
-
 fun maxLevelSize(level: Int): Int =
     if (level == 0)
         4
@@ -38,16 +30,8 @@ fun CRC32C.checksum(
     return value.toInt()
 }
 
-fun CRC32C.checksum(
-    type: Int,
-    size: Int,
-    key: ByteArray,
-    value: ByteArray
-): Int {
-    reset()
-    update(type)
-    update(size.toByteArray())
-    update(key)
-    update(value)
-    return this.value.toInt()
+fun longBytesSeq() = sequence {
+    for (i in 0L until Long.MAX_VALUE)
+    // We want smaller numbers to sort in front of bigger ones, so big endian is required.
+        yield(i.toByteArray(littleEndian = false))
 }

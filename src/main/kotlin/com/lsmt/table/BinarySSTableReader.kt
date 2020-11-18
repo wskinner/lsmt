@@ -1,5 +1,6 @@
 package com.lsmt.table
 
+import com.lsmt.core.Key
 import com.lsmt.core.Record
 import com.lsmt.tableBuffer
 import java.io.RandomAccessFile
@@ -10,7 +11,7 @@ import java.util.*
  * Handles logic for reading SSTables.
  */
 interface SSTableReader {
-    fun readAll(table: SSTableMetadata): SortedMap<String, Record?>
+    fun readAll(table: SSTableMetadata): SortedMap<Key, Record?>
 
     /**
      * Memory map the file and return the resulting SSTable.
@@ -19,9 +20,9 @@ interface SSTableReader {
 }
 
 class BinarySSTableReader : SSTableReader {
-    override fun readAll(table: SSTableMetadata): SortedMap<String, Record?> {
+    override fun readAll(table: SSTableMetadata): SortedMap<Key, Record?> {
         val reader = mmap(table).iterator()
-        val result = TreeMap<String, Record?>()
+        val result = TreeMap<Key, Record?>()
         for (entry in reader) {
             result[entry.first] = entry.second
         }

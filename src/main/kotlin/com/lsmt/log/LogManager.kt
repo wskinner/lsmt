@@ -1,5 +1,6 @@
 package com.lsmt.log
 
+import com.lsmt.core.Key
 import com.lsmt.core.Record
 import com.lsmt.log.BinaryLogWriter.Companion.BLOCK_SIZE
 import com.lsmt.table.SSTableWriter
@@ -61,7 +62,7 @@ class BinaryLogManager(
         writer.close()
     }
 
-    override fun append(key: String, value: Record?): Int = writer.append(key, value)
+    override fun append(key: Key, value: Record?): Int = writer.append(key, value)
 
     override fun size(): Int = writer.size()
 

@@ -1,17 +1,15 @@
 package com.lsmt.table
 
-import com.lsmt.core.*
-import com.lsmt.log.BinaryLogWriter
-import com.lsmt.log.Header
+import com.lsmt.core.Entry
+import com.lsmt.core.Key
+import com.lsmt.core.Record
 import com.lsmt.readInt
-import com.lsmt.readString
-import com.lsmt.toInt
 import mu.KotlinLogging
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 interface TableBuffer {
-    fun get(key: String): Record?
+    fun get(key: Key): Record?
 
     fun iterator(): Iterator<Entry>
 }
@@ -36,7 +34,7 @@ class StandardTableBuffer(
         )
     }
 
-    override fun get(key: String): Record? = reader
+    override fun get(key: Key): Record? = reader
         .get()
         .get(key)
 

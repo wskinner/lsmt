@@ -6,7 +6,7 @@ import com.lsmt.inputStream
 import java.nio.ByteBuffer
 
 class SSTableIterator(
-    private val buffer: ByteBuffer,
+    buffer: ByteBuffer,
     private val dataLength: Int
 ) : Iterator<Entry> {
     private val inputStream = buffer.asReadOnlyBuffer().apply { limit(dataLength) }

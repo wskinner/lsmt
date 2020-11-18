@@ -2,6 +2,7 @@ package com.lsmt.table
 
 import com.lsmt.core.*
 import com.lsmt.toByteArray
+import com.lsmt.toKey
 import mu.KotlinLogging
 import java.io.ByteArrayOutputStream
 
@@ -41,8 +42,8 @@ interface ManifestReader {
 
 data class SSTableMetadata(
     val path: String,
-    val minKey: String,
-    val maxKey: String,
+    val minKey: Key,
+    val maxKey: Key,
     val level: Int,
     val id: Long,
     val fileSize: Int,
@@ -67,14 +68,29 @@ data class SSTableMetadata(
         val os = ByteArrayOutputStream()
         os.write(path.length.toByteArray())
         os.write(path.toByteArray())
-        os.write(minKey.length.toByteArray())
-        os.write(minKey.toByteArray())
-        os.write(maxKey.length.toByteArray())
-        os.write(maxKey.toByteArray())
+        os.write(minKey.size.toByteArray())
+        os.write(minKey.byteArray.asByteArray())
+        os.write(maxKey.size.toByteArray())
+        os.write(maxKey.byteArray.asByteArray())
         os.write(level.toByteArray())
         os.write(id.toByteArray())
         os.write(fileSize.toByteArray())
         return os.toByteArray()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as SSTableMetadata
+
+        if (id != other.id) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return id.hashCode()
     }
 }
 
@@ -147,7 +163,7 @@ class StandardManifestManager(
 
     companion object {
         val logger = KotlinLogging.logger {}
-        const val add = "1"
-        const val remove = "2"
+        val add = "1".toByteArray().toKey()
+        val remove = "2".toByteArray().toKey()
     }
 }

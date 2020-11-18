@@ -1,6 +1,7 @@
 package com.lsmt.table
 
 import com.lsmt.core.Entry
+import com.lsmt.core.Key
 import com.lsmt.core.Record
 import mu.KotlinLogging
 
@@ -19,14 +20,14 @@ import mu.KotlinLogging
  */
 
 interface SSTable : Iterable<Entry> {
-    fun get(key: String): Record?
+    fun get(key: Key): Record?
 }
 
 class StandardSSTable(
     private val byteBuffer: TableBuffer
 ) : SSTable {
 
-    override fun get(key: String): Record? = byteBuffer.get(key)
+    override fun get(key: Key): Record? = byteBuffer.get(key)
 
     override fun iterator(): Iterator<Entry> = byteBuffer.iterator()
 
