@@ -4,6 +4,7 @@
 * Keys and values are arrays of bytes.
 * The basic operations are `Put(key,value)`, `Get(key)`, `Delete(key)`.
 * No external dependencies except Logback and Kotlin-Logging
+* Each write is synced to the OS. Relaxing this requirement would improve performance.
 
 # Building
 This project is built with Gradle, and has been tested with Gradle 6.7 on OSX. It probably works with Gradle 5 as well.
@@ -18,9 +19,8 @@ gradle test
 ```
 
 # Limitations
-* The database is not thread-safe. If you need to read and write from multiple threads, you must handle synchronization yourself.
+* The database is not thread-safe for writes. If you need to read and write from multiple threads, you must handle synchronization yourself.
 * No client-server support.
-* Currently, the LSM tree index stores key ranges in a naive way. Read and merge performance will suffer. I plan to replace this with an interval tree for more efficient queries.
 * Failure recovery is not yet implemented.
 
 # Performance
