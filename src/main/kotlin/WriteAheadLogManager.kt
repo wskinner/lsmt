@@ -18,15 +18,14 @@ interface WriteAheadLogManager : LSMRunnable {
 class StandardWriteAheadLogManager(
     private val file: File
 ) : WriteAheadLogManager {
-
-    private val fos = FileOutputStream(file, true)
+    private lateinit var fos: FileOutputStream
 
     override fun append(key: String, value: Map<String, Any>) {
         fos.write(key.toByteArray(CHARSET))
         fos.write(SEPARATOR)
         fos.write(jacksonObjectMapper().writeValueAsBytes(value))
         fos.write(LINE_SEPARATOR)
-        fos.fd.sync()
+//        fos.fd.sync()
     }
 
     override fun restore(): MemTable {
@@ -34,10 +33,11 @@ class StandardWriteAheadLogManager(
     }
 
     override fun start() {
-        TODO("Not yet implemented")
+        fos = FileOutputStream(file, true)
     }
 
     override fun stop() {
+        fos.close()
     }
 
     companion object {
