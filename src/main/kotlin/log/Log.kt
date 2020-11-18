@@ -11,6 +11,7 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.*
 import java.util.zip.CRC32C
+import kotlin.math.min
 
 /**
  *
@@ -63,6 +64,8 @@ class BinaryWriteAheadLogManager(
                 remainingBytes = writeTrailer()
                 offset += length
                 length = remainingBytes - 9
+
+                length = min(length, record.size - offset)
 
                 if (record.size > offset + length) {
                     os.write(checksum(middle, record, offset, length).toByteArray())
