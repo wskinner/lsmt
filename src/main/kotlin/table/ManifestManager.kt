@@ -1,7 +1,9 @@
 package table
 
 import core.KeyRange
-import core.TableIndex
+import core.Level
+import core.LevelIndex
+import core.emptyLevel
 import log.BinaryWriteAheadLogReader
 import log.WriteAheadLogWriter
 import table.StandardManifestManager.Companion.add
@@ -21,8 +23,10 @@ import java.util.*
  * Each of these operations can be represented as a series of removals and additions of tables.
  */
 interface ManifestManager {
-    // Map from level to tables
-    fun tables(): TableIndex
+    // Map from level number to Level
+    fun levels(): LevelIndex
+
+    fun level(level: Int): Level = levels().getOrDefault(level, emptyLevel())
 
     fun addTable(table: SSTableMetadata)
 
@@ -31,11 +35,12 @@ interface ManifestManager {
 
 interface ManifestWriter {
     fun addTable(table: SSTableMetadata)
+
     fun removeTable(table: SSTableMetadata)
 }
 
 interface ManifestReader {
-    fun read(): TableIndex
+    fun read(): LevelIndex
 }
 
 data class SSTableMetadata(
@@ -75,24 +80,25 @@ data class SSTableMetadata(
  */
 class StandardManifestManager(
     private val writer: ManifestWriter,
-    reader: ManifestReader
+    reader: ManifestReader,
+    private val levelFactory: () -> Level
 ) : ManifestManager {
-    private val allTables: TableIndex = reader.read()
+    private val allTables: LevelIndex = reader.read()
 
-    override fun tables(): TableIndex = allTables
+    override fun levels(): LevelIndex = allTables
 
     override fun addTable(table: SSTableMetadata) {
         writer.addTable(table)
 
         if (!allTables.containsKey(table.level)) {
-            allTables[table.level] = TreeMap()
+            allTables[table.level] = levelFactory()
         }
 
-        allTables[table.level]?.put(table.key, table)
+        allTables[table.level]?.add(table)
     }
 
     override fun removeTable(table: SSTableMetadata) {
-        allTables[table.level]?.remove(table.key)
+        allTables[table.level]?.remove(table)
     }
 
     companion object {
@@ -104,14 +110,14 @@ class StandardManifestManager(
 class BinaryManifestReader(
     private val logReader: BinaryWriteAheadLogReader
 ) : ManifestReader {
-    override fun read(): TableIndex {
-        val result = TreeMap<Int, SortedMap<TableKey, SSTableMetadata>>()
+    override fun read(): LevelIndex {
+        val result = TreeMap<Int, Level>()
 
         logReader.read().forEach { (type, record) ->
-            val tableMeta = record.toSSTableMetadata()
+            val tableMeta = record.toSSTableMetadata()!!
             when (type) {
-                add -> result[tableMeta?.level]?.put(tableMeta?.key, tableMeta)
-                remove -> result[tableMeta?.level]?.get(tableMeta?.key)
+                add -> result[tableMeta.level]?.add(tableMeta)
+                remove -> result[tableMeta.level]?.remove(tableMeta)
             }
         }
         return result

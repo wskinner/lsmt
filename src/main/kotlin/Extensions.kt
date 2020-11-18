@@ -38,4 +38,3 @@ fun concat(tables: Collection<SSTableMetadata>): Sequence<Entry> = sequence {
         yieldAll(reader.read())
     }
 }
-

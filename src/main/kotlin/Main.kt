@@ -1,4 +1,5 @@
 import core.LogStructuredMergeTree
+import core.StandardLevel
 import core.StandardLogStructuredMergeTree
 import log.BinaryWriteAheadLogManager
 import log.BinaryWriteAheadLogReader
@@ -48,7 +49,8 @@ fun main() {
                 ),
                 BinaryManifestReader(
                     BinaryWriteAheadLogReader(manifestFile.toPath())
-                )
+                ),
+                levelFactory = { StandardLevel() }
             ),
             BinarySSTableReader(
                 sstableDir,

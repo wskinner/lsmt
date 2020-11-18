@@ -12,7 +12,6 @@ import overlaps
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -101,7 +100,7 @@ class StandardSSTableManager(
 
         // When the size of the young level exceeds a threshold, merge all young level files into all overlapping files
         // in level 1.
-        if (manifest.tables()[0]?.size ?: 0 > config.maxYoungTables) {
+        if (manifest.level(0)?.size() ?: 0 > config.maxYoungTables) {
             mergeYoung()
         }
     }
@@ -117,11 +116,14 @@ class StandardSSTableManager(
      * 2. Ensure all tables are less than 2MB by splitting larger tables.
      */
     private fun mergeYoung() {
-        val newLevel1 = TreeMap(manifest.tables()[0])
-        manifest.tables()[1]?.let { newLevel1.putAll(it) }
+        val newLevel1 = manifest.level(0)!!.copy()
+        manifest.level(1)?.let {
+            newLevel1.addAll(it)
+        }
+        val t = TreeMap<String, String>()
         val mergeGroups = mutableListOf<List<SSTableMetadata>>()
 
-        var currentGroup = mutableListOf(newLevel1.firstEntry().value!!)
+        var currentGroup = mutableListOf(newLevel1.first())
         var currentRange = currentGroup.last().keyRange
 
         fun mergeGroup() {
@@ -131,7 +133,7 @@ class StandardSSTableManager(
             }
         }
 
-        for (next in newLevel1.values.drop(1)) {
+        for (next in newLevel1.drop(1)) {
             currentRange = if (!(currentRange overlaps next.keyRange)) {
                 // Make a new group and merge the current group together
                 mergeGroup()
@@ -245,11 +247,10 @@ class StandardSSTableManager(
      * scan all the tables that might contain the most recent record.
      */
     private fun getYoung(key: String): Record? =
-        manifest.tables()[0]
-            ?.values
-            ?.filter { it.keyRange.contains(key) }
-            ?.map { it.id to tableReader.read(it, key) }
-            ?.maxBy { it.first }
+        manifest.level(0)
+            .get(key)
+            .map { it.id to tableReader.read(it, key) }
+            .maxBy { it.first }
             ?.second
 
     /**
@@ -257,26 +258,25 @@ class StandardSSTableManager(
      * will be returned, if the key exists in the database. This should be optimized later by adding a Bloom Filter per
      * level, or something similar.
      *
-     * In the worst case, this function will run in proportion to the number of tables in the database. It could scan
-     * the metadata of every table, though it will only read the contents of at most one table - the youngest table
-     * containing the desired key.
+     * The true performance of this function depends on the implementation of the level structure. This function runs in
+     * O(L * Q) where L is the number of levels and Q is the time to query a level. If the level structure is
+     * efficiently implemented using an interval tree, this will come to O(L * log N) where N is the number of tables.
+     * If the level structure is implemented naively, this will come to O(N).
      */
     private fun getOld(key: String): Record? {
-        manifest.tables()
-            .forEach { (_, tableMetas) ->
-                tableMetas
-                    .values
-                    .forEach { it ->
-                        if (it.keyRange.contains(key)) {
-                            return tableReader.read(it, key)
-                        }
-                    }
+        manifest.levels()
+            .filterNot { it.key == 0 }
+            .values
+            .forEach {
+                // For levels except the young level, there must be at most one table whose range includes each key.
+                val table = it.get(key).firstOrNull()
+                if (table != null) {
+                    return tableReader.read(table, key)
+                }
             }
 
         return null
     }
-
-    fun SSTableMetadata.tableFile(): Path = tableFile(rootDirectory, config.sstablePrefix, id)
 }
 
 private fun tableFile(rootDirectory: File, prefix: String, id: Int): Path =

@@ -2,17 +2,12 @@ package table
 
 import Config
 import concat
-import core.Entry
-import core.LogStructuredMergeTree
-import core.Record
-import core.StandardLogStructuredMergeTree
+import core.*
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
 import log.BinaryWriteAheadLogManager
 import log.BinaryWriteAheadLogReader
 import log.BinaryWriteAheadLogWriter
-import java.io.File
-import java.nio.file.Path
 import java.util.*
 
 class SSTableManagerSpec : StringSpec({
@@ -25,12 +20,12 @@ class SSTableManagerSpec : StringSpec({
             ),
             BinaryManifestReader(
                 BinaryWriteAheadLogReader(manifestFile.toPath())
-            )
+            ),
+            levelFactory = { StandardLevel() }
         )
         val tree = tree(manifest)
         val entries = fillTree(tree)
-        val tables = manifest.tables()[0]!!
-            .values
+        val tables = manifest.level(0)
             .sortedBy { it.id }
         val tableEntries = concat(tables)
 
@@ -42,15 +37,13 @@ class SSTableManagerSpec : StringSpec({
             it.second shouldBe mergedEntries[it.first]
         }
 
-        (manifest.tables()[0]?.size ?: -1) shouldBe 0
+        (manifest.level(0).size()) shouldBe 0
     }
 })
 
 fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
     val walDir = createTempDir()
     val sstableDir = createTempDir()
-    val manifestDir = createTempDir()
-    val manifestFile = createTempFile(directory = manifestDir)
 
     val tableManager = StandardSSTableManager(
         sstableDir,
