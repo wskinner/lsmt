@@ -1,6 +1,7 @@
 package table
 
 import Config
+import concat
 import core.Entry
 import core.Record
 import core.nextFile
@@ -11,6 +12,7 @@ import overlaps
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -79,14 +81,16 @@ class StandardSSTableManager(
         )
         val data = BinaryWriteAheadLogReader(wal).read()
         var totalBytes = 0
-        data.forEach {
-            totalBytes += writer.append(it.first, it.second)
+        writer.use {
+            data.forEach {
+                totalBytes += writer.append(it.first, it.second)
+            }
         }
 
         // 3. Add the new table file to the young level.
         manifest.addTable(
             SSTableMetadata(
-                name = file.toString(),
+                path = file.toString(),
                 minKey = data.first().first,
                 maxKey = data.last().first,
                 level = level,
@@ -97,7 +101,7 @@ class StandardSSTableManager(
 
         // When the size of the young level exceeds a threshold, merge all young level files into all overlapping files
         // in level 1.
-        if (manifest.tables()[0]?.size ?: 0 > 4) {
+        if (manifest.tables()[0]?.size ?: 0 > config.maxYoungTables) {
             mergeYoung()
         }
     }
@@ -153,13 +157,6 @@ class StandardSSTableManager(
         }
     }
 
-    private fun concat(tables: Collection<SSTableMetadata>): Sequence<Entry> = sequence {
-        for (table in tables) {
-            val reader = BinaryWriteAheadLogReader(table.tableFile())
-            yieldAll(reader.read())
-        }
-    }
-
     /**
      * Given a collection of tables which span a certain range, split the tables into one or new tables, which
      * together span the same range, such that no table is larger than the maximum number of bytes.
@@ -186,7 +183,7 @@ class StandardSSTableManager(
             if (totalBytes >= config.maxSstableSize) {
                 result.add(
                     SSTableMetadata(
-                        name = currentFile.toString(),
+                        path = currentFile.toString(),
                         minKey = minKey!!,
                         maxKey = entry.first,
                         level = 1, // TODO fix
@@ -244,16 +241,16 @@ class StandardSSTableManager(
     }
 
     /**
-     * Search the young level (level 0) for a key. Tables in the young level may have overlapping keys.
+     * Search the young level (level 0) for a key. Tables in the young level may have overlapping keys, so we need to
+     * scan all the tables that might contain the most recent record.
      */
     private fun getYoung(key: String): Record? =
         manifest.tables()[0]
             ?.values
             ?.filter { it.keyRange.contains(key) }
-            ?.maxBy { it.id }
-            ?.let {
-                tableReader.read(it, key)
-            }
+            ?.map { it.id to tableReader.read(it, key) }
+            ?.maxBy { it.first }
+            ?.second
 
     /**
      * Search all the levels except level 0 for a key. The search proceeds top down, so the newest occurrence of the key

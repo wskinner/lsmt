@@ -4,7 +4,6 @@ import Config
 import log.BinaryWriteAheadLogManager
 import table.MemTable
 import table.SSTableManager
-import table.SSTableMetadata
 
 interface LogStructuredMergeTree : AutoCloseable {
     fun start()
@@ -29,8 +28,6 @@ class StandardLogStructuredMergeTree(
         writeAheadLog.append(key, value)
         memTable.put(key, value)
 
-        var maxRange: KeyRange
-        val toMerge = mutableListOf<SSTableMetadata>()
         if (writeAheadLog.size() > config.maxWalSize) {
             ssTable.addTableAsync(writeAheadLog.rotate())
             memTable = memTableFactory()

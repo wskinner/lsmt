@@ -89,7 +89,7 @@ class LogSpec : StringSpec({
             value["key3"] = 1000.123
             value["key4"] = Base64.getEncoder().encodeToString(randomBytes)
             key to value
-        }
+        }.sortedBy { it.first }
 
         wal.use {
             entries.forEach {

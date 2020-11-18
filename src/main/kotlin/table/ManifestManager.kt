@@ -39,7 +39,7 @@ interface ManifestReader {
 }
 
 data class SSTableMetadata(
-    val name: String,
+    val path: String,
     val minKey: String,
     val maxKey: String,
     val level: Int,
@@ -51,7 +51,7 @@ data class SSTableMetadata(
 
     fun toRecord(): SortedMap<String, Any> {
         val map = TreeMap<String, Any>()
-        map["name"] = name
+        map["path"] = path
         map["minKey"] = minKey
         map["maxKey"] = maxKey
         map["level"] = level
