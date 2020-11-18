@@ -27,37 +27,10 @@ gradle test
 JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling and tuning, but the system is architected with performance in mind.
 
 ## Latest benchmark
-Benchmarks data is from my 2018 MacBook Pro with a 2.7 GHz Quad-Core Intel Core i7.
 ```text
-Benchmark                      Mode  Cnt       Score         Error       Units
-SequentialWrites.singleWrite  thrpt    2  246461.567                     ops/s
-SequentialReads.singleRead    thrpt   10  1280590.622 ± 2871877.502      ops/s
-```
-
-### Synchronized - 1 reader thread at a time
-```text
-SequentialReads.singleRead  thrpt   10  32770.488 ± 7084.871  ops/s
-```
-
-### One reader per get()
-```text
-SequentialReads.singleRead  thrpt   10  96938.381 ± 18779.865  ops/s
-```
-
-### ThreadLocal reader
-```text
-SequentialReads.singleRead  thrpt   10  96898.472 ± 17878.384  ops/s
-```
-
-### ThreadLocal reader with improved key iteration
-```text
-SequentialReads.singleRead  thrpt   10  32924.280 ± 87581.672  ops/s
-```
-
-### Byte arrays for keys
-```text
-SequentialReads.singleRead  thrpt   10  3859520.502 ± 1459138.981  ops/s
 SequentialWrites.singleWrite  thrpt    2  475170.724          ops/s
+SequentialReads.singleRead    thrpt   10  3859520.502 ± 1459138.981  ops/s
+RandomReads.singleRead        thrpt   10  319501.789 ± 187320.192  ops/s
 ```
 
 ## Running benchmarks

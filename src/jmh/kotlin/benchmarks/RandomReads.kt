@@ -4,18 +4,18 @@ import com.lsmt.core.Key
 import com.lsmt.core.LogStructuredMergeTree
 import com.lsmt.core.Record
 import com.lsmt.table.StandardTableIterator
+import com.lsmt.toByteArray
+import com.lsmt.toKey
 import org.openjdk.jmh.annotations.*
+import java.util.*
 import java.util.concurrent.TimeUnit
 
 /**
- * This benchmark attempts to measure the pure read performance of the system on a contiguous set of records. Records
- * are accessed in increasing order by key. Since records with adjacent keys are usually stored in the same block in the
- * same SSTable file, this gives the system an opportunity for performance optimization.
+ * This benchmark attempts to measure the pure read performance of the system on a random set of records. Records
+ * are inserted in increasing order by key. Records are accessed by sampling from the key range.
  *
- * Each record has a key of 8 bytes and a variable-size value of 100 bytes.
+ * Each record has a key of 16 bytes and a variable-size value of 100 bytes.
  *
- * This benchmark produces a lot of garbage during warmup, making the result unreliable. Sometimes the first few
- * iterations are slow, presumably due to GC overhead.
  */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.Throughput)
@@ -24,12 +24,12 @@ import java.util.concurrent.TimeUnit
 @Measurement(iterations = 10)
 @Fork(1)
 @Warmup(iterations = 1)
-open class SequentialReads {
+open class RandomReads {
     private var tree: LogStructuredMergeTree? = null
 
     @State(Scope.Thread)
     open class ThreadState {
-        val keyIterator: Iterator<Key> = keySeq().iterator()
+        val keyIterator: Iterator<Key> = randomKeySequence(keyRangeSize).iterator()
     }
 
     @Setup
@@ -55,5 +55,15 @@ open class SequentialReads {
 
     companion object {
         const val keyRangeSize = 10_000_000
+    }
+}
+
+fun randomKeySequence(max: Int) = sequence {
+    val random = Random(0)
+    while (true) {
+        val key = (random.nextLong() % max)
+            .toByteArray(littleEndian = false)
+            .toKey()
+        yield(key)
     }
 }

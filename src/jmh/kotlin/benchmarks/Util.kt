@@ -1,15 +1,14 @@
 package benchmarks
 
 import ch.qos.logback.classic.Level
-import com.lsmt.core.StandardLevel
-import com.lsmt.core.StandardLogStructuredMergeTree
+import com.lsmt.core.*
 import com.lsmt.log.BinaryLogWriter
 import com.lsmt.log.SynchronizedFileGenerator
 import com.lsmt.log.createLogReader
 import com.lsmt.log.createWalManager
 import com.lsmt.parseConfig
 import com.lsmt.table.*
-import com.lsmt.toByteArray
+import com.lsmt.toKey
 import java.util.*
 
 fun treeFactory(): StandardLogStructuredMergeTree {
@@ -77,4 +76,19 @@ fun treeFactory(): StandardLogStructuredMergeTree {
         config,
         Level.INFO
     ).apply { start() }
+}
+
+
+fun keySeq() = longBytesSeq().map { it.toKey() }
+
+fun LogStructuredMergeTree.fillTree(keySeq: Sequence<Key>, keyRangeSize: Int) {
+    val random = Random(0)
+
+    for (key in keySeq.take(keyRangeSize)) {
+        val value = ByteArray(100).apply {
+            random.nextBytes(this)
+        }
+
+        put(key, value)
+    }
 }
