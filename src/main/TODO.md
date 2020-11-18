@@ -1,6 +1,2 @@
-- Implement compaction
-- Test memory mapped files for WAL
-- Implement reads
-  - Add sparse index
-- Implement deletes
 - Add global and per-table bloom filter
+- Interval tree for index
