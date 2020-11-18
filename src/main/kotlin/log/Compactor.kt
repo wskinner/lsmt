@@ -1,15 +1,11 @@
+package log
+
+import core.Compactor
 import table.ManifestManager
 import table.SSTableController
 
-interface Compactor : Runnable {
-    /**
-     * Check if the level size invariants are maintained. If so, return. If not, perform level L to L+1 compactions
-     * until the invariants are maintained.
-     */
-}
-
 /**
- * Compactor that implements the LevelDB compaction strategy, which is described at
+ * log.Compactor that implements the LevelDB compaction strategy, which is described at
  * https://github.com/google/leveldb/blob/master/doc/impl.md#compactions. Parts of this comment are copied verbatim
  * from that page.
  *

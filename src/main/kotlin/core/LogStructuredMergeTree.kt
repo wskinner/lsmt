@@ -1,8 +1,11 @@
 package core
 
 import Config
+import ch.qos.logback.classic.Level
 import log.BinaryWriteAheadLogManager
 import mu.KotlinLogging
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import table.MemTable
 import table.SSTableManager
 
@@ -20,10 +23,16 @@ class StandardLogStructuredMergeTree(
     private val memTableFactory: () -> MemTable,
     private val ssTable: SSTableManager,
     private val writeAheadLog: BinaryWriteAheadLogManager,
-    private val config: Config
+    private val config: Config,
+    private val logLevel: Level = Level.INFO
 ) : LogStructuredMergeTree {
 
     private var memTable = memTableFactory()
+
+    init {
+        val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as ch.qos.logback.classic.Logger
+        rootLogger.level = logLevel
+    }
 
     /**
      * Add a key, value pair to the database. Not thread safe.

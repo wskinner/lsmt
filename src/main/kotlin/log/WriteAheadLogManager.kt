@@ -107,7 +107,6 @@ class BinaryWriteAheadLogManager(
         return BinaryWriteAheadLogWriter(os)
     }
 
-
     companion object {
         val logger = KotlinLogging.logger { }
     }

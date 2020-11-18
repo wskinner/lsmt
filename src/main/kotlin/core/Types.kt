@@ -3,9 +3,9 @@ package core
 import java.nio.file.Path
 import java.util.*
 
-typealias Record = SortedMap<String, Any>
+typealias Compactor = Runnable
+typealias Record = Map<String, Any>
 typealias Entry = Pair<String, Record?>
-typealias SafeEntry = Pair<String, Record>
 typealias LevelIndex = SortedMap<Int, Level>
 typealias NumberedFile = Pair<Int, Path>
 

@@ -1,7 +1,7 @@
 package table
 
-import Compactor
 import Config
+import core.Compactor
 import core.Record
 import core.makeFile
 import log.createLogReader

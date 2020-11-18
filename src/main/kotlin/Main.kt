@@ -1,18 +1,18 @@
-import ch.qos.logback.classic.Level
 import core.LogStructuredMergeTree
 import core.StandardLevel
 import core.StandardLogStructuredMergeTree
 import core.maxLevelSize
-import log.BinaryWriteAheadLogManager
-import log.BinaryWriteAheadLogWriter
-import log.SynchronizedFileGenerator
-import log.createLogReader
+import log.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import table.*
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
+
+/**
+ * Leaving this here until I figure out how to get profiling to work with JMH + Gradle.
+ */
 
 /**
  * Write some key-value pairs. Keys are sequential. Values are on the order of ~10 to ~1000 bytes.
@@ -89,9 +89,9 @@ fun parseConfig(): Config {
 }
 
 fun treeFactory(): StandardLogStructuredMergeTree {
-    val manifestFile = createTempFile("manifest")
-    val sstableDir = createTempDir("sstable")
-    val walDir = createTempDir("wal")
+    val manifestFile = createTempFile("manifest").apply { deleteOnExit() }
+    val sstableDir = createTempDir("sstable").apply { deleteOnExit() }
+    val walDir = createTempDir("wal").apply { deleteOnExit() }
 
     val config = parseConfig()
 
@@ -145,7 +145,7 @@ fun treeFactory(): StandardLogStructuredMergeTree {
 
 fun main() {
     val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as ch.qos.logback.classic.Logger
-    rootLogger.level = Level.ERROR
+//    rootLogger.level = Level.ERROR
     thread(start = true) {
         sequentialWrites(5, 2_000_000, treeFactory = { treeFactory() })
     }.join()
@@ -155,8 +155,3 @@ fun main() {
     }.join()
     println("Run complete.")
 }
-
-//    print("Reads")
-//    for (i in 1..100000) {
-//        tree.get("person$i")
-//    }

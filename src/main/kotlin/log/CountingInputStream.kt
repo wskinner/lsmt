@@ -6,7 +6,8 @@ import java.io.InputStream
  * InputStream that counts the number of bytes that have been read. Not thread safe.
  */
 class CountingInputStream(private val delegate: InputStream) : InputStream() {
-    var bytesRead = 0L
+    var bytesRead = 0
+    private val totalBytes = delegate.available()
 
     override fun read(): Int {
         bytesRead++
@@ -20,11 +21,11 @@ class CountingInputStream(private val delegate: InputStream) : InputStream() {
 
     override fun readAllBytes(): ByteArray {
         val result = delegate.readAllBytes()
-        bytesRead = result.size.toLong()
+        bytesRead = result.size
         return result
     }
 
     override fun available(): Int {
-        return delegate.available()
+        return totalBytes - bytesRead
     }
 }

@@ -1,7 +1,7 @@
 package table
 
 import Config
-import StandardCompactor
+import log.StandardCompactor
 import core.*
 import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
@@ -14,8 +14,8 @@ import java.util.*
 
 class SSTableManagerSpec : StringSpec({
     "merge level 0 to level 1" {
-        val manifestDir = createTempDir()
-        val manifestFile = createTempFile(directory = manifestDir)
+        val manifestDir = createTempDir().apply { deleteOnExit() }
+        val manifestFile = createTempFile(directory = manifestDir).apply { deleteOnExit() }
         val manifest = StandardManifestManager(
             BinaryManifestWriter(
                 BinaryWriteAheadLogWriter(manifestFile.outputStream())
@@ -64,8 +64,8 @@ class SSTableManagerSpec : StringSpec({
 })
 
 fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
-    val walDir = createTempDir()
-    val sstableDir = createTempDir()
+    val walDir = createTempDir().apply { deleteOnExit() }
+    val sstableDir = createTempDir().apply { deleteOnExit() }
 
     val tableController = StandardSSTableController(
         sstableDir,
@@ -106,7 +106,7 @@ fun fillTree(tree: LogStructuredMergeTree): List<Entry> {
     val random = Random(0)
     val entries = mutableListOf<Entry>()
 
-    for (i in 0..100) {
+    for (i in 0..100_000) {
         val key = "key$i"
         val value = TreeMap<String, Any>()
         val randomBytes = ByteArray(random.nextInt(200) + 25)

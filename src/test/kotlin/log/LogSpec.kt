@@ -11,7 +11,7 @@ import java.util.*
 class LogSpec : StringSpec({
 
     "log serialization and deserialization of a single full record" {
-        val file = createTempDir()
+        val file = createTempDir().apply { deleteOnExit() }
         val wal = BinaryWriteAheadLogManager(file)
         val key = "foobar"
         val value = TreeMap<String, Any>()
@@ -35,7 +35,7 @@ class LogSpec : StringSpec({
     "log serialization and deserialization of a multi part record" {
         val random = Random(0)
 
-        val file = createTempDir()
+        val file = createTempDir().apply { deleteOnExit() }
         val wal = BinaryWriteAheadLogManager(file)
         val key = "foobar"
         val value = TreeMap<String, Any>()
@@ -61,7 +61,7 @@ class LogSpec : StringSpec({
     }
 
     "log serialization and deserialization of an empty record" {
-        val file = createTempDir()
+        val file = createTempDir().apply { deleteOnExit() }
         val wal = BinaryWriteAheadLogManager(file)
         val key = "foobar"
         val value = TreeMap<String, Any>()
@@ -77,7 +77,7 @@ class LogSpec : StringSpec({
     "log serialization and deserialization of several records" {
         val random = Random(0)
 
-        val file = createTempDir()
+        val file = createTempDir().apply { deleteOnExit() }
         val wal = BinaryWriteAheadLogManager(file)
 
         val entries = (0..100).map {
@@ -109,7 +109,7 @@ class LogSpec : StringSpec({
     "trailer read and write including records spanning multiple blocks" {
         ((BLOCK_SIZE - 10)..(BLOCK_SIZE + 10)).forEach { dataSize ->
             val random = Random(0)
-            val file = createTempFile()
+            val file = createTempFile().apply { deleteOnExit() }
             val writer = BinaryWriteAheadLogWriter(
                 Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
             )
@@ -135,7 +135,7 @@ class LogSpec : StringSpec({
     "trailer read and write including records spanning multiple blocks (long)" {
         val dataSize = BLOCK_SIZE * 2 + 1
         val random = Random(0)
-        val file = createTempFile()
+        val file = createTempFile().apply { deleteOnExit() }
         val writer = BinaryWriteAheadLogWriter(
             Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
         )
@@ -158,7 +158,7 @@ class LogSpec : StringSpec({
     }
 
     "deletion of previously inserted value" {
-        val file = createTempFile()
+        val file = createTempFile().apply { deleteOnExit() }
         val writer = BinaryWriteAheadLogWriter(
             Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
         )
@@ -195,7 +195,7 @@ class LogSpec : StringSpec({
     }
 
     "deletion of nonexistanat value" {
-        val file = createTempFile()
+        val file = createTempFile().apply { deleteOnExit() }
         val writer = BinaryWriteAheadLogWriter(
             Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
         )
