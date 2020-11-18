@@ -125,13 +125,14 @@ class StandardSSTableController(
                         SSTableMetadata(
                             path = fileGenerator.path(logHandle.id).toString(),
                             minKey = minKey!!,
-                            maxKey = key,
+                            maxKey = maxKey!!,
                             level = targetLevel,
                             id = logHandle.id,
                             fileSize = logHandle.totalBytes
                         )
                     )
                     minKey = null
+
                 }
             }
 

@@ -19,15 +19,11 @@ import java.util.zip.CRC32C
 interface TableBuffer {
     fun get(key: String): Record?
 
-    fun position(): Int
-
-    fun limit(): Int
-
     fun iterator(): Iterator<Entry>
 }
 
 class StandardTableBuffer(
-    val delegate: ByteBuffer,
+    private val delegate: ByteBuffer,
     val table: SSTableMetadata
 ) : TableBuffer {
 
@@ -90,12 +86,12 @@ class StandardTableBuffer(
      * record, or is equal to dataLimit.
      */
     private fun seekToNextRecord(): Header? {
-        while (position() < dataLimit) {
+        while (delegate.position() < dataLimit) {
             val header = readHeader()
             if (header.type == FIRST || header.type == FULL)
                 return header
 
-            delegate.position(position() + header.length)
+            delegate.position(delegate.position() + header.length)
         }
         return null
     }
@@ -131,12 +127,17 @@ class StandardTableBuffer(
     }
 
     private fun readBlockIndex(): BlockIndex {
-        val indexStart = dataLength()
         val index = BlockIndex()
-        delegate.position(indexStart)
-        while (delegate.position() < delegate.limit() - 4) {
-            val indexEntry = readIndexEntry()
-            index[indexEntry.first] = indexEntry.second
+        try {
+            val indexStart = dataLength()
+            delegate.position(indexStart)
+            while (delegate.position() < delegate.limit() - 4) {
+                val indexEntry = readIndexEntry()
+                index[indexEntry.first] = indexEntry.second
+            }
+        } catch (e: Throwable) {
+            logger.error(e) { "Failed to read block index table=${table.path} size=${table.fileSize}" }
+            throw e
         }
 
         return index
@@ -175,10 +176,6 @@ class StandardTableBuffer(
 
         return null
     }
-
-    override fun position(): Int = delegate.position()
-
-    override fun limit(): Int = delegate.limit()
 
     companion object {
         val logger = KotlinLogging.logger {}

@@ -2,7 +2,6 @@ package com.lsmt.table
 
 import com.lsmt.core.Entry
 import com.lsmt.core.Record
-import com.lsmt.log.BinaryLogManager
 import com.lsmt.log.FileGenerator
 import com.lsmt.log.createLogReader
 import com.lsmt.log.createSSTableManager
@@ -64,29 +63,23 @@ class TableCache(
      * TODO (will) implement a sort on the raw bytes to avoid object churn
      */
     fun write(logId: Long): SSTableMetadata {
-        createSSTableManager(sstableFileGenerator).use { writer ->
-            val data = createLogReader(walFileGenerator.path(logId))
-                .readAll()
-                .sortedBy { it.first }
-
-            var totalBytes = 0
-            data.forEach {
-                totalBytes += writer.append(it.first, it.second)
-            }
-            return SSTableMetadata(
-                path = writer.filePath.toString(),
-                minKey = data.first().first,
-                maxKey = data.last().first,
-                level = 0,
-                id = writer.id,
-                fileSize = totalBytes
-            )
+        val writer = createSSTableManager(sstableFileGenerator)
+        val data = createLogReader(walFileGenerator.path(logId))
+            .readAll()
+            .sortedBy { it.first }
+        data.forEach {
+            writer.append(it.first, it.second)
         }
-    }
 
-    private fun logMetrics() {
-        val hitRate = "%.2f".format((operations.get() - cacheMisses.get()) / operations.get().toDouble())
-        logger.info("CachedSSTableReader metrics: operations=${operations.get()} cacheMisses=${cacheMisses.get()} hitRate=$hitRate")
+        val logHandle = writer.rotate()
+        return SSTableMetadata(
+            path = sstableFileGenerator.path(logHandle.id).toString(),
+            minKey = data.first().first,
+            maxKey = data.last().first,
+            level = 0,
+            id = logHandle.id,
+            fileSize = logHandle.totalBytes
+        )
     }
 
     fun write(log: MemTable): SSTableMetadata {
@@ -100,8 +93,6 @@ class TableCache(
                     result[entry.key] = entry.value
                     writer.append(entry.key, entry.value)
                 }
-
-
             }
 
             val logHandle = logManager.rotate()
@@ -123,6 +114,11 @@ class TableCache(
             logger.debug("write() log=$log finished")
             tableWriteSemaphore.release()
         }
+    }
+
+    private fun logMetrics() {
+        val hitRate = "%.2f".format((operations.get() - cacheMisses.get()) / operations.get().toDouble())
+        logger.info("CachedSSTableReader metrics: operations=${operations.get()} cacheMisses=${cacheMisses.get()} hitRate=$hitRate")
     }
 
     companion object {

@@ -8,7 +8,6 @@ import com.lsmt.table.SSTableManager
 import mu.KotlinLogging
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.lang.StringBuilder
 import java.util.concurrent.atomic.AtomicLong
 
 interface LogStructuredMergeTree : AutoCloseable {
@@ -58,7 +57,7 @@ class StandardLogStructuredMergeTree(
         }
     }
 
-    override fun get(key: String): Record?  {
+    override fun get(key: String): Record? = synchronized(this) {
         val result = memTable.get(key) ?: ssTable.get(key)
         val count = readCounter.incrementAndGet()
         if (count % 10_000_000 == 0L) {

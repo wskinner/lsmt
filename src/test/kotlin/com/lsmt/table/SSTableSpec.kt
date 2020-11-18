@@ -76,4 +76,19 @@ class SSTableSpec : StringSpec({
             exp.second shouldBe actual.value
         }
     }
+
+    "read bad table file" {
+        val reader = BinarySSTableReader()
+        val tableMeta = SSTableMetadata(
+            "/var/folders/wc/9glj74tj60v3h1_c_8jjkb280000gn/T/sstable15918895584119590722.tmp/sstable_19",
+            "",
+            "",
+            0,
+            19,
+            4002982
+        )
+        val buffer = reader.mmap(tableMeta)
+
+        buffer.get("foo") shouldBe null
+    }
 })
