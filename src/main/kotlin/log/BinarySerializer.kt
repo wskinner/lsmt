@@ -1,5 +1,6 @@
 package log
 
+import Record
 import toByteArray
 import toDouble
 import toFloat
@@ -35,15 +36,15 @@ import java.util.*
  * key := uint8[key length]
  * value := uint8[value length]
  */
-fun encode(key: String, map: SortedMap<String, Any>): ByteArray {
+fun encode(key: String, map: Record): ByteArray {
     val baos = ByteArrayOutputStream()
-    val keyBytes = key.toByteArray()
+    var keyBytes = key.toByteArray()
     baos.write(keyBytes.size.toByteArray())
     baos.write(keyBytes)
 
     map.forEach { entry ->
         // First write the header, including placeholders
-        val keyBytes = entry.key.toByteArray()
+        keyBytes = entry.key.toByteArray()
         val valueBytes = when (val value = entry.value) {
             is String -> value.toByteArray()
             is Int -> value.toByteArray()
@@ -63,7 +64,7 @@ fun encode(key: String, map: SortedMap<String, Any>): ByteArray {
     return baos.toByteArray()
 }
 
-fun InputStream.decode(): Pair<String, SortedMap<String, Any>> {
+fun InputStream.decode(): Pair<String, Record> {
     val keyLength = readNBytes(4).toInt()
     val key = readNBytes(keyLength).decodeToString()
     val map = TreeMap<String, Any>()

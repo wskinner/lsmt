@@ -1,32 +1,27 @@
-import java.util.*
+import log.BinaryWriteAheadLogManager
 
 interface LogStructuredMergeTree : AutoCloseable {
     fun start()
 
-    fun put(key: String, value: SortedMap<String, Any>)
+    fun put(key: String, value: Record)
 
-    fun get(key: String): SortedMap<String, Any>?
+    fun get(key: String): Record?
 
     fun delete(key: String)
 }
 
-data class Record(
-    val sequence: Long,
-    val value: SortedMap<String, Any>
-)
-
 class StandardLogStructuredMergeTree(
     private val memTableFactory: () -> MemTable,
     private val ssTable: SSTableManager,
-    private val writeAheadLog: WriteAheadLogManager,
+    private val writeAheadLog: BinaryWriteAheadLogManager,
     private val maxMemtableSize: Int = 10000
 ) : LogStructuredMergeTree {
 
     private var memTable = memTableFactory()
 
-    override fun put(key: String, value: SortedMap<String, Any>) {
-        val seq = writeAheadLog.append(key, value)
-        memTable.put(key, Record(seq, value))
+    override fun put(key: String, value: Record) {
+        writeAheadLog.append(key, value)
+        memTable.put(key, value)
 
         if (memTable.size() > maxMemtableSize) {
             synchronized(memTable) {
@@ -36,7 +31,7 @@ class StandardLogStructuredMergeTree(
         }
     }
 
-    override fun get(key: String): SortedMap<String, Any>? = memTable.get(key) ?: ssTable.get(key)
+    override fun get(key: String): Record? = memTable.get(key) ?: ssTable.get(key)
 
     override fun delete(key: String) {
         TODO("Not yet implemented")

@@ -1,5 +1,7 @@
+import log.BinaryWriteAheadLogManager
 import java.io.File
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -20,7 +22,7 @@ fun test(times: Int, ops: Int, tree: LogStructuredMergeTree) {
         runs.add(end - start)
     }
 
-    val opsPerSecond = (ops * times).toDouble() / (runs.sum() / 1_000_000_000.0)
+    val opsPerSecond = "%.2f".format((ops * times).toDouble() / (runs.sum() / 1_000_000_000.0))
     println("Ops per second: $opsPerSecond")
     println(runs)
 }
@@ -39,14 +41,14 @@ fun main() {
                 Path.of("./build/sstables/manifest.txt")
             )
         ),
-        StandardWriteAheadLogManager(
-            File("./build/wal.txt")
+        BinaryWriteAheadLogManager(
+            Paths.get("./build/wal.bin")
         )
     ).apply { start() }
 
     tree.use {
         thread(start = true) {
-            test(5, 100_0000, tree)
+            test(5, 100_000, tree)
         }.join()
     }
 

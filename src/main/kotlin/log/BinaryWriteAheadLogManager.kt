@@ -1,15 +1,14 @@
 package log
 
 import MemTable
+import Record
 import WriteAheadLogManager
 import toByteArray
 import toInt
-import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
-import java.util.*
 import java.util.zip.CRC32C
 import kotlin.math.min
 
@@ -41,7 +40,7 @@ class BinaryWriteAheadLogManager(
      * The record header (checksum, length, type) requires 9 bytes. If the current block has less than 9 bytes remaining,
      * the remaining bytes must be zeroes.
      */
-    override fun append(key: String, value: SortedMap<String, Any>): Long {
+    override fun append(key: String, value: Record) {
         // A header is always 9 bytes.
 
         val data = encode(key, value)
@@ -57,7 +56,6 @@ class BinaryWriteAheadLogManager(
             type = full
             check = checksum(type, data)
             write(check, length, type, data, offset)
-            return 0L
         } else {
             length = remainingBytes
             type = first
@@ -83,12 +81,9 @@ class BinaryWriteAheadLogManager(
                 write(check, length, type, data, offset)
             } while (data.size > offset + length)
         }
-
-        return 0L
     }
 
     private fun write(check: Int, length: Int, type: Int, data: ByteArray, offset: Int) {
-        println("Writing data:\n\tcheck: $check\n\tlength: $length\n\ttype: $type\n\tdata: $data\n\toffset: $offset")
         os.write(check.toByteArray())
         os.write(length.toByteArray())
         os.write(type)
@@ -101,8 +96,10 @@ class BinaryWriteAheadLogManager(
      */
     private fun writeTrailer(): Int {
         val remainingBytes = blockSize - Files.size(filePath) % blockSize
-        while (remainingBytes < 9) {
-            os.write(0)
+        if (remainingBytes < 9) {
+            repeat((1..remainingBytes).count()) {
+                os.write(0)
+            }
         }
         return blockSize - (Files.size(filePath) % blockSize).toInt()
     }
@@ -136,8 +133,8 @@ class BinaryWriteAheadLogManager(
 
     data class Header(val crc: Int, val length: Int, val type: Int)
 
-    fun read(): List<Pair<String, SortedMap<String, Any>>> {
-        val result = mutableListOf<Pair<String, SortedMap<String, Any>>>()
+    fun read(): List<Pair<String, Record>> {
+        val result = mutableListOf<Pair<String, Record>>()
         filePath.toFile().inputStream().counting().use {
             while (it.available() > 0) {
                 val record = it.readRecord()
@@ -165,9 +162,8 @@ class BinaryWriteAheadLogManager(
         return data
     }
 
-    fun CountingInputStream.readRecord(): Pair<String, SortedMap<String, Any>> {
+    private fun CountingInputStream.readRecord(): Pair<String, Record> {
         var header = readHeader()
-        println("Reading record: type=${header.type}, length=${header.length}")
         var data = readData(header)
 
         if (header.type == full) {

@@ -32,7 +32,8 @@ data class KeyRange(
 data class SSTableMetadata(
     val name: String,
     val keyRange: KeyRange,
-    val level: Int
+    val level: Int,
+    val id: Int
 )
 
 sealed class Operation {

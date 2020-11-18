@@ -81,7 +81,7 @@ class LogSpec : StringSpec({
         wal.start()
 
 
-        val entries = (0..4).map {
+        val entries = (0..100).map {
             val key = "key$it"
             val value = TreeMap<String, Any>()
             val randomBytes = ByteArray(BinaryWriteAheadLogManager.blockSize * random.nextInt(3) + 25)

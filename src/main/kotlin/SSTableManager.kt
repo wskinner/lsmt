@@ -1,5 +1,4 @@
 import java.io.File
-import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -9,7 +8,7 @@ import kotlin.math.max
 interface SSTableManager : AutoCloseable {
 
     // Get a value from the on-disk storage.
-    fun get(key: String): SortedMap<String, Any>?
+    fun get(key: String): Record?
 
     // Add a new SSTable.
     fun addTable(memTable: MemTable)
@@ -44,7 +43,7 @@ class StandardSSTableManager(
         }
     }
 
-    override fun get(key: String): SortedMap<String, Any>? = getYoung(key) ?: getOld(key)
+    override fun get(key: String): Record? = getYoung(key) ?: getOld(key)
 
     override fun addTable(memTable: MemTable) {
         val file = nextTableFile()
@@ -69,26 +68,17 @@ class StandardSSTableManager(
         return File(rootDirectory, PREFIX + (tableCounter.getAndIncrement()))
     }
 
-    private fun getYoung(key: String): SortedMap<String, Any>? {
-        var maxSeq = 0L
-        var value: SortedMap<String, Any>? = null
-        // Search level 0
-        manifest.tables()[0]?.forEach { tableMeta ->
-            if (tableMeta.keyRange.contains(key)) {
-                val table = serializer.deserialize(File(rootDirectory, tableMeta.name))
-                table.getRecord(key)?.also {
-                    if (it.sequence > maxSeq) {
-                        value = it.value
-                        maxSeq = it.sequence
-                    }
-                }
+    private fun getYoung(key: String): Record? {
+        return manifest.tables()[0]
+            ?.filter { it.keyRange.contains(key) }
+            ?.maxBy { it.id }
+            ?.run {
+                serializer.deserialize(File(rootDirectory, name))
+                    .getRecord(key)
             }
-        }
-
-        return value
     }
 
-    private fun getOld(key: String): SortedMap<String, Any>? {
+    private fun getOld(key: String): Record? {
         manifest.tables().forEach { (_, tableMetas) ->
             tableMetas.forEach { tableMeta ->
                 if (tableMeta.keyRange.contains(key)) {
