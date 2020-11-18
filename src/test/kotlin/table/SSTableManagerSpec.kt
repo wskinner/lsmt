@@ -1,9 +1,14 @@
 package table
 
 import com.lsmt.Config
-import com.lsmt.core.*
-import com.lsmt.log.*
-import com.lsmt.merge
+import com.lsmt.core.Entry
+import com.lsmt.core.LogStructuredMergeTree
+import com.lsmt.core.StandardLevel
+import com.lsmt.core.StandardLogStructuredMergeTree
+import com.lsmt.log.BinaryLogManager
+import com.lsmt.log.BinaryLogWriter
+import com.lsmt.log.SynchronizedFileGenerator
+import com.lsmt.log.createLogReader
 import com.lsmt.table.*
 import com.lsmt.treeFactory
 import io.kotlintest.shouldBe
@@ -16,7 +21,7 @@ class SSTableManagerSpec : StringSpec({
         val manifestFile = createTempFile(directory = manifestDir).apply { deleteOnExit() }
         val manifest = StandardManifestManager(
             BinaryManifestWriter(
-                BinaryWriteAheadLogWriter(manifestFile.outputStream())
+                BinaryLogWriter(manifestFile.outputStream())
             ),
             BinaryManifestReader(
                 createLogReader(manifestFile.toPath())
@@ -24,20 +29,8 @@ class SSTableManagerSpec : StringSpec({
             levelFactory = { StandardLevel(it) }
         )
         val tree = tree(manifest)
-        val entries = fillTree(tree)
-        val tables = manifest.level(0)
-            .sortedBy { it.id }
-        val tableEntries = entries(tables)
-
-        // The table entries have been merged and sorted, so we must do the same
-        val mergedEntries = entries.merge()
-
-        tableEntries.forEach {
-            it.second shouldBe mergedEntries[it.first]
-        }
-
+        fillTree(tree)
         tree.close()
-
         (manifest.level(0).size()) shouldBe 2
     }
 
@@ -64,25 +57,27 @@ class SSTableManagerSpec : StringSpec({
 fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
     val walDir = createTempDir().apply { deleteOnExit() }
     val sstableDir = createTempDir().apply { deleteOnExit() }
-
+    val walFileGenerator = SynchronizedFileGenerator(walDir, Config.walPrefix)
+    val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
 
     val tableController = StandardSSTableController(
         Config.maxSstableSize,
         manifestManager,
+        TableCache(
+            BinarySSTableReader(sstableDir),
+            Config.maxCacheSizeMB,
+            walFileGenerator = walFileGenerator,
+            sstableFileGenerator = sstableFileGenerator
+        ),
         SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
     )
-    val compactor = StandardCompactor(
-        manifestManager,
-        { maxLevelSize(it) },
-        tableController
-    )
+
     val tableManager = StandardSSTableManager(
         sstableDir,
         manifestManager,
         BinarySSTableReader(sstableDir),
         Config,
-        tableController,
-        compactor
+        tableController
     )
 
     return StandardLogStructuredMergeTree(
@@ -92,9 +87,7 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
             )
         },
         tableManager,
-        BinaryWriteAheadLogManager(
-            SynchronizedFileGenerator(walDir, Config.walPrefix)
-        ),
+        BinaryLogManager(walFileGenerator),
         Config
     ).apply { start() }
 }

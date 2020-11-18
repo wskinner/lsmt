@@ -1,14 +1,11 @@
 package com.lsmt.table
 
 import com.lsmt.Config
-import com.lsmt.cached
-import com.lsmt.core.Compactor
 import com.lsmt.core.Record
 import com.lsmt.core.makeFile
 import com.lsmt.log.createLogReader
 import mu.KotlinLogging
 import java.io.File
-import java.nio.file.Path
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -29,12 +26,12 @@ interface SSTableManager : AutoCloseable {
     /**
      * Create a new table from the log file.
      */
-    fun addTableFromLog(logPath: Path)
+    fun addTableFromLog(logId: Int)
 
     /**
      * Asynchronously create a new table from the log file.
      */
-    fun addTableAsync(wal: Path)
+    fun addTableAsync(logId: Int)
 }
 
 /**
@@ -59,11 +56,10 @@ class StandardSSTableManager(
     private val manifest: ManifestManager,
     tableReader: SSTableReader,
     private val config: Config,
-    private val tableController: SSTableController,
-    compactor: Compactor
+    private val tableController: SSTableController
 ) : SSTableManager {
 
-    private val cachedTableReader = tableReader.cached()
+    private val cachedTableReader = tableReader
 
     // This pool is responsible for making new SSTable files from log files. This task is parallelizable with no
     // contention. Because it is IO bound, it is safe to create many threads here.
@@ -72,43 +68,30 @@ class StandardSSTableManager(
             Runtime.getRuntime().availableProcessors()
         ) { Thread(it, nextThreadName("sstable")) }
 
-    // This pool handles compaction of tables. This task is inherently contentious. In theory, we can lock at the level
-    // of the individual table. I'm not yet sure of the best way to handle this.
-    private val compactionPool =
-        Executors.newSingleThreadScheduledExecutor { Thread(it, nextThreadName("compaction")) }
-
     init {
         if (!rootDirectory.exists()) {
             rootDirectory.mkdir()
         }
-
-        compactionPool.scheduleWithFixedDelay(compactor, 1L, 1L, TimeUnit.SECONDS)
     }
 
     override fun get(key: String): Record? = getYoung(key) ?: getOld(key)
 
-    override fun addTableFromLog(logPath: Path) {
-        // Add the new table to the young level.
-        manifest.addTable(tableController.addTableFromLog(logPath))
+    /**
+     * When the size of the young level exceeds a threshold, merge all young level files into all overlapping files in
+     * level 1.
+     */
+    override fun addTableFromLog(logId: Int) {
+        manifest.addTable(tableController.addTableFromLog(logId))
 
-        // When the size of the young level exceeds a threshold, merge all young level files into all overlapping files
-        // in level 1.
         if (manifest.level(0).size() > config.maxYoungTables) {
-            compactionPool.submit(this::mergeYoung)
+            tableController.addCompactionTask(0)
         }
     }
 
-    private fun mergeYoung() = synchronized(manifest) {
-        val level0 = manifest.level(0)
-        if (level0.size() > config.maxYoungTables) {
-            tableController.merge(0)
-        }
-    }
-
-    override fun addTableAsync(wal: Path) {
-        logger.info("Adding task for table ${wal.fileName}")
+    override fun addTableAsync(logId: Int) {
+        logger.info("Adding task for log=$logId")
         tableCreationPool.submit {
-            addTableFromLog(wal)
+            addTableFromLog(logId)
         }
     }
 
@@ -120,11 +103,9 @@ class StandardSSTableManager(
         tableCreationPool.awaitTermination(1, TimeUnit.MINUTES)
         logger.info("Thread pool termination complete")
 
-        logger.info("Shutting down compaction pool")
-        Thread.sleep(1000)
-        compactionPool.shutdown()
-        compactionPool.awaitTermination(1, TimeUnit.MINUTES)
-        logger.info("Compaction pool termination complete")
+        logger.info("Shutting down table controller")
+        tableController.close()
+        logger.info("table controller termination complete")
 
         manifest.close()
         logger.info("Done shutting down SSTableManager")
@@ -186,7 +167,7 @@ class BinarySSTableReader(
         val file = makeFile(rootDirectory, prefix, table.id)
         val reader = createLogReader(file)
 
-        return reader.read()
+        return reader.readAll()
             .firstOrNull { it.first == key }
             ?.second
     }
@@ -194,7 +175,7 @@ class BinarySSTableReader(
     override fun readAll(table: SSTableMetadata): SortedMap<String, Record?> {
         val file = makeFile(rootDirectory, prefix, table.id)
         val reader = createLogReader(file)
-        val entries = reader.read()
+        val entries = reader.readAll()
         val result = TreeMap<String, Record?>()
         for (entry in entries) {
             result[entry.first] = entry.second

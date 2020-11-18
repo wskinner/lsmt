@@ -3,8 +3,10 @@ package com.lsmt
 import com.lsmt.core.LogStructuredMergeTree
 import com.lsmt.core.StandardLevel
 import com.lsmt.core.StandardLogStructuredMergeTree
-import com.lsmt.core.maxLevelSize
-import com.lsmt.log.*
+import com.lsmt.log.BinaryLogManager
+import com.lsmt.log.BinaryLogWriter
+import com.lsmt.log.SynchronizedFileGenerator
+import com.lsmt.log.createLogReader
 import com.lsmt.table.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -99,18 +101,29 @@ fun treeFactory(): StandardLogStructuredMergeTree {
 
     val manifestManager = StandardManifestManager(
         BinaryManifestWriter(
-            BinaryWriteAheadLogWriter(manifestFile.outputStream())
+            BinaryLogWriter(manifestFile.outputStream())
         ),
         BinaryManifestReader(
             createLogReader(manifestFile.toPath())
         ),
         levelFactory = { StandardLevel(it) }
     )
+    val sstableFileGenerator = SynchronizedFileGenerator(sstableDir, config.sstablePrefix)
+    val walFileGenerator = SynchronizedFileGenerator(walDir, config.walPrefix)
 
     val tableController = StandardSSTableController(
         config.maxSstableSize,
         manifestManager,
-        SynchronizedFileGenerator(sstableDir, config.sstablePrefix)
+        TableCache(
+            BinarySSTableReader(
+                sstableDir,
+                config.sstablePrefix
+            ),
+            config.maxCacheSizeMB,
+            walFileGenerator = walFileGenerator,
+            sstableFileGenerator = sstableFileGenerator
+        ),
+        fileGenerator = sstableFileGenerator
     )
 
     return StandardLogStructuredMergeTree(
@@ -127,16 +140,9 @@ fun treeFactory(): StandardLogStructuredMergeTree {
                 config.sstablePrefix
             ),
             config,
-            tableController,
-            StandardCompactor(
-                manifestManager,
-                { maxLevelSize(it) },
-                tableController
-            )
+            tableController
         ),
-        BinaryWriteAheadLogManager(
-            SynchronizedFileGenerator(walDir, config.walPrefix)
-        ),
+        BinaryLogManager(walFileGenerator),
         config
     ).apply { start() }
 }

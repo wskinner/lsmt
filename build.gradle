@@ -40,6 +40,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 
     testImplementation "io.kotlintest:kotlintest-runner-junit5:3.1.10"
+    testImplementation "io.mockk:mockk:1.10.2"
     testImplementation(platform('org.junit:junit-bom:5.3.1'))
 
     jmh 'org.openjdk.jmh:jmh-core:0.9'

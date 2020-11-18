@@ -1,8 +1,8 @@
 package com.lsmt.table
 
 import com.lsmt.core.*
-import com.lsmt.log.BinaryWriteAheadLogReader
-import com.lsmt.log.WriteAheadLogWriter
+import com.lsmt.log.BinaryLogReader
+import com.lsmt.log.LogWriter
 import com.lsmt.table.StandardManifestManager.Companion.add
 import com.lsmt.table.StandardManifestManager.Companion.remove
 import com.lsmt.toSSTableMetadata
@@ -132,12 +132,12 @@ class StandardManifestManager(
  * log layer.
  */
 class BinaryManifestReader(
-    private val logReader: BinaryWriteAheadLogReader<Entry>
+    private val logReader: BinaryLogReader<Entry>
 ) : ManifestReader {
     override fun read(): LevelIndex {
         val result = TreeMap<Int, Level>()
 
-        logReader.read().forEach { (type, record) ->
+        logReader.readAll().forEach { (type, record) ->
             val tableMeta = record!!.toSSTableMetadata()!!
             when (type) {
                 add -> result[tableMeta.level]?.add(tableMeta)
@@ -149,7 +149,7 @@ class BinaryManifestReader(
 }
 
 class BinaryManifestWriter(
-    private val logWriter: WriteAheadLogWriter
+    private val logWriter: LogWriter
 ) : ManifestWriter {
 
     override fun addTable(table: SSTableMetadata) {

@@ -4,6 +4,7 @@ import com.lsmt.core.NumberedFile
 import com.lsmt.core.makeFile
 import com.lsmt.core.nextFile
 import java.io.File
+import java.nio.file.Path
 
 /**
  * A common pattern is to generate a series of file names which consist of a prefix and a monotonically increasing ID.
@@ -16,6 +17,8 @@ interface FileGenerator {
      * Return the next file and its ID. This function must never return the same file to two different callers.
      */
     fun next(): NumberedFile
+
+    fun path(id: Int): Path
 }
 
 class SynchronizedFileGenerator(
@@ -26,6 +29,8 @@ class SynchronizedFileGenerator(
         val id = nextFileId()
         return id to makeFile(rootDirectory, prefix, id)
     }
+
+    override fun path(id: Int): Path = makeFile(rootDirectory, prefix, id)
 
     private fun nextFileId(): Int = nextFile(rootDirectory, prefix)
 

@@ -1,13 +1,13 @@
 package com.lsmt.core
 
-import com.lsmt.Config
 import ch.qos.logback.classic.Level
-import com.lsmt.log.BinaryWriteAheadLogManager
+import com.lsmt.Config
+import com.lsmt.log.BinaryLogManager
+import com.lsmt.table.MemTable
+import com.lsmt.table.SSTableManager
 import mu.KotlinLogging
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import com.lsmt.table.MemTable
-import com.lsmt.table.SSTableManager
 
 interface LogStructuredMergeTree : AutoCloseable {
     fun start()
@@ -22,7 +22,7 @@ interface LogStructuredMergeTree : AutoCloseable {
 class StandardLogStructuredMergeTree(
     private val memTableFactory: () -> MemTable,
     private val ssTable: SSTableManager,
-    private val writeAheadLog: BinaryWriteAheadLogManager,
+    private val writeAheadLog: BinaryLogManager,
     private val config: Config,
     logLevel: Level = Level.INFO
 ) : LogStructuredMergeTree {
@@ -62,7 +62,7 @@ class StandardLogStructuredMergeTree(
      */
     override fun close() {
         logger.info("Shutting down LSMT")
-        ssTable.addTableAsync(writeAheadLog.rotate())
+        ssTable.addTableFromLog(writeAheadLog.rotate())
         writeAheadLog.close()
         ssTable.close()
         logger.info("Done shutting down LSMT")

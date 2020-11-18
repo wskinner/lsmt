@@ -18,7 +18,7 @@ fun treeFactory(): StandardLogStructuredMergeTree {
 
     val manifestManager = StandardManifestManager(
         BinaryManifestWriter(
-            BinaryWriteAheadLogWriter(manifestFile.outputStream())
+            BinaryLogWriter(manifestFile.outputStream())
         ),
         BinaryManifestReader(
             createLogReader(manifestFile.toPath())
@@ -53,7 +53,7 @@ fun treeFactory(): StandardLogStructuredMergeTree {
                 tableController
             )
         ),
-        BinaryWriteAheadLogManager(
+        BinaryLogManager(
             SynchronizedFileGenerator(walDir, config.walPrefix)
         ),
         config,

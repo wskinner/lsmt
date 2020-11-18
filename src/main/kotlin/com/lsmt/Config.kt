@@ -6,4 +6,5 @@ object Config {
     val maxSstableSize = 2_000_000
     val walPrefix = "wal_"
     val maxYoungTables = 4
+    val maxCacheSizeMB = 500
 }

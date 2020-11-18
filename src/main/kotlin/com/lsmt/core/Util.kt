@@ -1,9 +1,8 @@
 package com.lsmt.core
 
-import com.lsmt.table.SSTableMetadata
-import com.lsmt.toSequence
 import java.io.File
 import java.nio.file.Path
+import java.util.zip.CRC32C
 import kotlin.math.pow
 
 fun nextFile(directory: File, prefix: String): Int {
@@ -34,8 +33,9 @@ fun max(a: String, b: String) =
 
 fun maxLevelSize(level: Int): Int = 10.0.pow(level.toDouble()).toInt()
 
-fun entries(tables: List<SSTableMetadata>): Sequence<Entry> = sequence {
-    for (table in tables) {
-        yieldAll(table.toSequence())
-    }
+fun CRC32C.checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = data.size): Int {
+    reset()
+    update(type)
+    update(data, offset, length)
+    return value.toInt()
 }

@@ -1,8 +1,8 @@
 package log
 
 import com.lsmt.log.*
-import com.lsmt.log.BinaryWriteAheadLogWriter.Companion.BLOCK_SIZE
-import com.lsmt.merge
+import com.lsmt.log.BinaryLogWriter.Companion.BLOCK_SIZE
+import com.lsmt.table.merge
 import io.kotlintest.shouldBe
 import io.kotlintest.shouldNotBe
 import io.kotlintest.specs.StringSpec
@@ -13,7 +13,7 @@ class LogSpec : StringSpec({
 
     "log serialization and deserialization of a single full record" {
         val dir = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
+        val wal = BinaryLogManager(SynchronizedFileGenerator(dir, "prefix"))
         val key = "foobar"
         val value = TreeMap<String, Any>()
         wal.use {
@@ -23,7 +23,7 @@ class LogSpec : StringSpec({
             wal.append(key, value)
         }
 
-        val deserialized = wal.read().merge()
+        val deserialized = wal.read().toMap()
         deserialized.size shouldBe 1
 
         val deserializedValue = deserialized["foobar"]!!
@@ -37,7 +37,7 @@ class LogSpec : StringSpec({
         val random = Random(0)
 
         val dir = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
+        val wal = BinaryLogManager(SynchronizedFileGenerator(dir, "prefix"))
         val key = "foobar"
         val value = TreeMap<String, Any>()
 
@@ -51,7 +51,7 @@ class LogSpec : StringSpec({
             wal.append(key, value)
         }
 
-        val deserialized = wal.read().merge()
+        val deserialized = wal.read().toMap()
         deserialized.size shouldBe 1
 
         val deserializedValue = deserialized["foobar"]!!
@@ -63,14 +63,14 @@ class LogSpec : StringSpec({
 
     "log serialization and deserialization of an empty record" {
         val dir = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
+        val wal = BinaryLogManager(SynchronizedFileGenerator(dir, "prefix"))
         val key = "foobar"
         val value = TreeMap<String, Any>()
         wal.use {
             wal.append(key, value)
         }
 
-        val deserialized = wal.read().merge()
+        val deserialized = wal.read().toMap()
         deserialized.size shouldBe 1
         deserialized["foobar"]!!.size shouldBe 0
     }
@@ -79,7 +79,7 @@ class LogSpec : StringSpec({
         val random = Random(0)
 
         val dir = createTempDir().apply { deleteOnExit() }
-        val wal = BinaryWriteAheadLogManager(SynchronizedFileGenerator(dir, "prefix"))
+        val wal = BinaryLogManager(SynchronizedFileGenerator(dir, "prefix"))
 
         val entries = (0..100).map {
             val key = "key$it"
@@ -111,10 +111,10 @@ class LogSpec : StringSpec({
         ((BLOCK_SIZE - 10)..(BLOCK_SIZE + 10)).forEach { dataSize ->
             val random = Random(0)
             val file = createTempFile().apply { deleteOnExit() }
-            val writer = BinaryWriteAheadLogWriter(
+            val writer = BinaryLogWriter(
                 Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
             )
-            val reader = BinaryWriteAheadLogReader(file.toPath()) { it.readAllBytes() }
+            val reader = BinaryLogReader(file.toPath()) { it.readAllBytes() }
 
             val data = ByteArray(dataSize)
             random.nextBytes(data)
@@ -123,7 +123,7 @@ class LogSpec : StringSpec({
                 writer.appendBytes(data)
             }
 
-            val result = reader.read()
+            val result = reader.readAll()
             result.size shouldBe 1
             try {
                 result.first() shouldBe data
@@ -137,10 +137,10 @@ class LogSpec : StringSpec({
         val dataSize = BLOCK_SIZE * 2 + 1
         val random = Random(0)
         val file = createTempFile().apply { deleteOnExit() }
-        val writer = BinaryWriteAheadLogWriter(
+        val writer = BinaryLogWriter(
             Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
         )
-        val reader = BinaryWriteAheadLogReader(file.toPath()) { it.readAllBytes() }
+        val reader = BinaryLogReader(file.toPath()) { it.readAllBytes() }
 
         val data = ByteArray(dataSize)
         random.nextBytes(data)
@@ -149,81 +149,12 @@ class LogSpec : StringSpec({
             writer.appendBytes(data)
         }
 
-        val result = reader.read()
+        val result = reader.readAll()
         result.size shouldBe 1
         try {
             result.first() shouldBe data
         } catch (t: Throwable) {
             t.printStackTrace()
         }
-    }
-
-    "deletion of previously inserted value" {
-        val file = createTempFile().apply { deleteOnExit() }
-        val writer = BinaryWriteAheadLogWriter(
-            Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
-        )
-        val reader = BinaryWriteAheadLogReader(file.toPath()) { it.decode() }
-
-        val entries = listOf(
-            "0" to sortedMapOf(
-                "0" to 0,
-                "1" to "1",
-                "2" to 2.0
-            ),
-            "1" to sortedMapOf(
-                "0" to 0,
-                "1" to "1",
-                "2" to 2.0
-            )
-        )
-
-        val keyToDelete = entries[0].first
-        val keyToKeep = entries[1].first
-
-        writer.use {
-            for (entry in entries) {
-                writer.append(entry.first, entry.second)
-            }
-
-            writer.append(keyToDelete, null)
-        }
-
-        val result = reader.read().merge()
-        result.size shouldBe 1
-        result.containsKey(keyToDelete) shouldBe false
-        result.containsKey(keyToKeep) shouldBe true
-    }
-
-    "deletion of nonexistanat value" {
-        val file = createTempFile().apply { deleteOnExit() }
-        val writer = BinaryWriteAheadLogWriter(
-            Files.newOutputStream(file.toPath()).buffered(BLOCK_SIZE)
-        )
-        val reader = BinaryWriteAheadLogReader(file.toPath()) { it.decode() }
-
-        val entries = listOf(
-            "0" to sortedMapOf(
-                "0" to 0,
-                "1" to "1",
-                "2" to 2.0
-            )
-        )
-
-        val keyToDelete = "1"
-        val keyToKeep = entries[0].first
-
-        writer.use {
-            for (entry in entries) {
-                writer.append(entry.first, entry.second)
-            }
-
-            writer.append(keyToDelete, null)
-        }
-
-        val result = reader.read().merge()
-        result.size shouldBe 1
-        result.containsKey(keyToDelete) shouldBe false
-        result.containsKey(keyToKeep) shouldBe true
     }
 })
