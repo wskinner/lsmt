@@ -1,20 +1,29 @@
 package com.lsmt.table
 
-class TableKey(val minKey: String, val id: Int) : Comparable<TableKey> {
-    override fun compareTo(other: TableKey): Int {
-        val strCmp = minKey.compareTo(other.minKey)
+data class TableKey(val minKey: String, val id: Long)
+
+/**
+ * It is desirable to use a Comparator here instead of the natural ordering of TableKey so that we can avoid costly NPEs
+ * in {@link java.util.TreeMap#floorEntry}
+ */
+class TableKeyComparator : Comparator<TableKey> {
+    override fun compare(o1: TableKey?, o2: TableKey?): Int {
+        if (o1 == null && o2 == null)
+            return 0
+
+        if (o1 == null && o2 != null)
+            return -1
+
+        if (o1 != null && o2 == null)
+            return 1
+
+        // Neither key is null
+        val strCmp = o1!!.minKey.compareTo(o2!!.minKey)
 
         if (strCmp == 0) {
-            return id.compareTo(other.id)
+            return o1.id.compareTo(o2.id)
         }
 
         return strCmp
     }
-
-    override fun equals(other: Any?): Boolean = when (other) {
-        is TableKey -> other.minKey == minKey && other.id == id
-        else -> false
-    }
-
-    override fun hashCode(): Int = 31 * minKey.hashCode() + id
 }

@@ -8,6 +8,7 @@ import com.lsmt.table.SSTableManager
 import mu.KotlinLogging
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.lang.StringBuilder
 import java.util.concurrent.atomic.AtomicLong
 
 interface LogStructuredMergeTree : AutoCloseable {
@@ -29,6 +30,7 @@ class StandardLogStructuredMergeTree(
 ) : LogStructuredMergeTree {
 
     private val writeCounter = AtomicLong()
+    private val readCounter = AtomicLong()
 
     private var memTable = memTableFactory()
 
@@ -45,18 +47,25 @@ class StandardLogStructuredMergeTree(
         memTable.put(key, value)
 
         if (writeAheadLog.size() > config.maxWalSize) {
-            ssTable.addTableAsync(memTable)
-            writeAheadLog.rotate()
+            val id = writeAheadLog.rotate()
+            ssTable.addTableAsync(memTable, id)
             memTable = memTableFactory()
         }
 
         val count = writeCounter.incrementAndGet()
-        if (count % 1_000_000 == 0L) {
+        if (count % 10_000_000 == 0L) {
             logger.info("Processed $count writes")
         }
     }
 
-    override fun get(key: String): Record? = memTable.get(key) ?: ssTable.get(key)
+    override fun get(key: String): Record?  {
+        val result = memTable.get(key) ?: ssTable.get(key)
+        val count = readCounter.incrementAndGet()
+        if (count % 10_000_000 == 0L) {
+            logger.info("Processed $count reads")
+        }
+        return result
+    }
 
     override fun delete(key: String) {
         writeAheadLog.append(key, null)
@@ -76,7 +85,10 @@ class StandardLogStructuredMergeTree(
         writeAheadLog.close()
         ssTable.close()
         logger.info("Done shutting down LSMT")
+        logger.info(toString())
     }
+
+    override fun toString(): String = ssTable.toString()
 
     companion object {
         val logger = KotlinLogging.logger { }

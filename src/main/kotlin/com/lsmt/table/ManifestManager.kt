@@ -1,15 +1,9 @@
 package com.lsmt.table
 
 import com.lsmt.core.*
-import com.lsmt.log.BinaryLogReader
-import com.lsmt.log.LogWriter
-import com.lsmt.table.StandardManifestManager.Companion.add
-import com.lsmt.table.StandardManifestManager.Companion.remove
 import com.lsmt.toByteArray
-import com.lsmt.toSSTableMetadata
 import mu.KotlinLogging
 import java.io.ByteArrayOutputStream
-import java.util.*
 
 /**
  * The manifest file contains the state of the levels. We need to keep track of all the SSTable files, and which level
@@ -50,7 +44,7 @@ data class SSTableMetadata(
     val minKey: String,
     val maxKey: String,
     val level: Int,
-    val id: Int,
+    val id: Long,
     val fileSize: Int,
     val keyRange: KeyRange = KeyRange(minKey, maxKey),
     val key: TableKey = TableKey(minKey, id)
@@ -139,48 +133,21 @@ class StandardManifestManager(
         writer.close()
     }
 
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.append("Levels: \n")
+        for (level in levels().values) {
+            sb.append("\t")
+            sb.append(level.toString())
+            sb.append("\n")
+        }
+
+        return sb.toString()
+    }
+
     companion object {
         val logger = KotlinLogging.logger {}
         const val add = "1"
         const val remove = "2"
     }
-}
-
-/**
- * TODO Instead of implementing deletes at the manifest layer, use the delete functionality that is now build into the
- * log layer.
- */
-class BinaryManifestReader(
-    private val logReader: BinaryLogReader<Entry>
-) : ManifestReader {
-    override fun read(): LevelIndex {
-        val result = TreeMap<Int, Level>()
-
-        logReader.readAll().forEach { (type, record) ->
-            val tableMeta = record!!.toSSTableMetadata()!!
-            when (type) {
-                add -> result[tableMeta.level]?.add(tableMeta)
-                remove -> result[tableMeta.level]?.remove(tableMeta)
-            }
-        }
-        return result
-    }
-}
-
-class BinaryManifestWriter(
-    private val logWriter: LogWriter
-) : ManifestWriter {
-
-    override fun addTable(table: SSTableMetadata) {
-        logWriter.append(add, table.toRecord())
-    }
-
-    override fun removeTable(table: SSTableMetadata) {
-        logWriter.append(remove, table.toRecord())
-    }
-
-    override fun close() {
-        logWriter.close()
-    }
-
 }

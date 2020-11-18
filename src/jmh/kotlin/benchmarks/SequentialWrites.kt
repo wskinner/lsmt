@@ -39,7 +39,7 @@ open class SequentialWrites {
         val value = ByteArray(random.nextInt(1000) + 5).apply {
             random.nextBytes(this)
         }
-        tree?.put("person$counter", value)
+        tree?.put("person${counter++}", value)
     }
 
     companion object {

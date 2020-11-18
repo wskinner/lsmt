@@ -14,24 +14,23 @@ gradle build
 
 # Testing
 ```bash
-gradle test           
+gradle test
 ```
 
 # Limitations
 * The database is not thread-safe. If you need to read and write from multiple threads, you must handle synchronization yourself.
-* No client-server support. 
+* No client-server support.
 * Currently, the LSM tree index stores key ranges in a naive way. Read and merge performance will suffer. I plan to replace this with an interval tree for more efficient queries.
 * Failure recovery is not yet implemented.
 
 # Performance
-JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling and tuning, but the system is architected with performance in mind. 
+JMH benchmarks are in `src/jmh`. I have put little to no effort into profiling and tuning, but the system is architected with performance in mind.
 
 ## Latest benchmark
 Benchmarks data is from my 2018 MacBook Pro with a 2.7 GHz Quad-Core Intel Core i7.
 ```text
-Benchmark                      Mode  Cnt       Score       Error  Units
-SequentialReads.singleRead    thrpt   10  195979.981 ± 55956.806  ops/s
-SequentialWrites.singleWrite  thrpt    2  415899.844              ops/s
+Benchmark                      Mode  Cnt       Score         Error       Units
+SequentialWrites.singleWrite  thrpt    2       415899.844                ops/s
 ```
 ## Running benchmarks
 Benchmarks can be run with

@@ -7,4 +7,5 @@ object Config {
     val walPrefix = "wal_"
     val maxYoungTables = 4
     val maxCacheSizeMB = 500
+    val maxActiveTableCreationTasks = 2
 }

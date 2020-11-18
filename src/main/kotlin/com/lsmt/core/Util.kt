@@ -5,7 +5,7 @@ import java.nio.file.Path
 import java.util.zip.CRC32C
 import kotlin.math.pow
 
-fun makeFile(rootDirectory: File, prefix: String, id: Int): Path =
+fun makeFile(rootDirectory: File, prefix: String, id: Long): Path =
     File(
         rootDirectory,
         "$prefix$id"
@@ -19,7 +19,11 @@ fun max(a: String, b: String) =
     if (a > b) a
     else b
 
-fun maxLevelSize(level: Int): Int = 10.0.pow(level.toDouble()).toInt()
+fun maxLevelSize(level: Int): Int =
+    if (level == 0)
+        4
+    else
+        10.0.pow(level.toDouble()).toInt()
 
 fun CRC32C.checksum(type: Int, data: ByteArray, offset: Int = 0, length: Int = data.size): Int {
     reset()

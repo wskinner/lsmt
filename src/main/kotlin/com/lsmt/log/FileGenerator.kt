@@ -2,8 +2,10 @@ package com.lsmt.log
 
 import com.lsmt.core.NumberedFile
 import com.lsmt.core.makeFile
+import mu.KotlinLogging
 import java.io.File
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * A common pattern is to generate a series of file names which consist of a prefix and a monotonically increasing ID.
@@ -17,29 +19,39 @@ interface FileGenerator {
      */
     fun next(): NumberedFile
 
-    fun path(id: Int): Path
+    fun path(id: Long): Path
 }
 
 class SynchronizedFileGenerator(
     private val rootDirectory: File,
     private val prefix: String
 ) : FileGenerator {
-    override fun next(): NumberedFile = synchronized(this) {
-        val id = nextFile()
+    private val counter = AtomicLong()
+
+    init {
+        counter.set(nextFile())
+    }
+
+    override fun next(): NumberedFile {
+        val id = counter.getAndIncrement()
         return id to makeFile(rootDirectory, prefix, id)
     }
 
-    override fun path(id: Int): Path = makeFile(rootDirectory, prefix, id)
+    override fun path(id: Long): Path = makeFile(rootDirectory, prefix, id)
 
-    private fun nextFile(): Int {
+    private fun nextFile(): Long {
         val current = currentFile()
         return current + 1
     }
 
-    private fun currentFile(): Int =
+    private fun currentFile(): Long =
         rootDirectory.list { _, name ->
             name?.startsWith(prefix) ?: false
         }?.map {
-            it.removePrefix(prefix).toInt()
+            it.removePrefix(prefix).toLong()
         }?.max() ?: 0
+
+    companion object {
+        val logger = KotlinLogging.logger { }
+    }
 }

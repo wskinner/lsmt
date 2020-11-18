@@ -12,7 +12,10 @@ import java.util.concurrent.TimeUnit
  * are accessed in increasing order by key. Since records with adjacent keys are usually stored in the same block in the
  * same SSTable file, this gives the system an opportunity for performance optimization.
  *
- * Each record has a key of 16 bytes and a variable-size value of less than 400 bytes.
+ * Each record has a key of 16 bytes and a variable-size value of 100 bytes.
+ *
+ * This benchmark produces a lot of garbage during warmup, making the result unreliable. Sometimes the first few
+ * iterations are slow, presumably due to GC overhead.
  */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.Throughput)

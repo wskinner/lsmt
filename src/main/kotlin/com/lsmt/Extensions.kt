@@ -3,8 +3,6 @@ package com.lsmt
 import Bytes
 import com.lsmt.core.KeyRange
 import com.lsmt.core.Record
-import com.lsmt.core.max
-import com.lsmt.core.min
 import com.lsmt.log.CountingInputStream
 import com.lsmt.table.SSTableMetadata
 import java.io.InputStream
@@ -21,6 +19,7 @@ fun ByteArray.toDouble(): Double = Bytes.bytesToDouble(this)
 
 fun InputStream.counting() = CountingInputStream(this)
 fun InputStream.readInt() = readNBytes(4).toInt()
+fun InputStream.readLong() = readNBytes(8).toLong()
 fun InputStream.readString(len: Int) = readNBytes(len).decodeToString()
 
 fun Record.toSSTableMetadata(): SSTableMetadata? {
@@ -32,7 +31,7 @@ fun Record.toSSTableMetadata(): SSTableMetadata? {
     val maxKeyLength = stream.readInt()
     val maxKey = stream.readString(maxKeyLength)
     val level = stream.readInt()
-    val id = stream.readInt()
+    val id = stream.readLong()
     val fileSize = stream.readInt()
 
     return SSTableMetadata(
@@ -46,6 +45,3 @@ fun Record.toSSTableMetadata(): SSTableMetadata? {
 }
 
 infix fun KeyRange.overlaps(other: KeyRange): Boolean = other.contains(start) || contains(other.start)
-
-fun KeyRange.merge(other: KeyRange): KeyRange = KeyRange(min(start, other.start), max(endInclusive, other.endInclusive))
-

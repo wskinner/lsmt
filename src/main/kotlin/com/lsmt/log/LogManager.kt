@@ -10,22 +10,10 @@ import java.nio.file.StandardOpenOption
 
 interface LogManager : LogWriter {
     // Start a new log file. Return the ID of the old log file.
-    fun rotate(): Int
+    fun rotate(): Long
 
     // Read the current log file and return its contents merged and sorted.
     fun read(): List<Entry>
-}
-
-interface LogWriter : AutoCloseable {
-
-    /**
-     * Append a record to the log. Return the number of bytes written.
-     * Passing a null record signifies a deletion.
-     */
-    fun append(key: String, value: Record?): Int
-
-    // Total number of bytes written to the file.
-    fun size(): Int
 }
 
 data class Header(val crc: Int, val length: Int, val type: Int)
@@ -44,7 +32,7 @@ data class Header(val crc: Int, val length: Int, val type: Int)
 class BinaryLogManager(
     private val fileGenerator: FileGenerator
 ) : LogManager {
-    var id: Int
+    var id: Long
         private set
 
     var filePath: Path
@@ -75,7 +63,7 @@ class BinaryLogManager(
 
     override fun size(): Int = writer.size()
 
-    override fun rotate(): Int {
+    override fun rotate(): Long {
         val oldId = id
         close()
         val numberedFile = fileGenerator.next()

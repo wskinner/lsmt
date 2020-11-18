@@ -5,10 +5,12 @@ plugins {
 }
 
 jmh {
-    include = [".*SequentialReads.*"]
-//    include = [".*SequentialWrites.*"]
+    include = [
+//            ".*SequentialReads.*"
+             ".*SequentialWrites.*"
+    ]
     duplicateClassesStrategy = 'warn'
-    jvmArgs = ["-XX:+PreserveFramePointer", "-Xmx4096m"]
+    jvmArgs = ["-XX:+PreserveFramePointer"]
 }
 
 test {

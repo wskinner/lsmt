@@ -10,6 +10,7 @@ import mu.KotlinLogging
 import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 interface SSTableController : AutoCloseable {
 
@@ -23,7 +24,7 @@ interface SSTableController : AutoCloseable {
     /**
      * Create a new table file from the log and return the metadata. The caller is responsible for updating the index.
      */
-    fun addTableFromLog(id: Int): SSTableMetadata
+    fun addTableFromLog(id: Long): SSTableMetadata
 
     fun addTableFromLog(log: MemTable): SSTableMetadata
 
@@ -34,8 +35,12 @@ class StandardSSTableController(
     private val maxTableSize: Int,
     private val manifest: ManifestManager,
     private val tableCache: TableCache,
-    private val fileGenerator: FileGenerator
+    private val fileGenerator: FileGenerator,
+    private val mergeStrategy: MergeStrategy
 ) : SSTableController {
+    private val compactionsPerformed = AtomicLong()
+
+    private val compactionsQueued = AtomicLong()
 
     // This pool handles compaction of tables. This task is inherently contentious. In theory, we can lock at the level
     // of the individual table. I'm not yet sure of the best way to handle this.
@@ -53,40 +58,49 @@ class StandardSSTableController(
      * tombstones until we can guarantee that no higher levels in the tree contain leftover entries for the deleted key.
      */
     override fun merge(level: Int) = synchronized(manifest) {
-        val start = System.nanoTime()
+        val compactionId = compactionsPerformed.getAndIncrement()
+        val compactionsRemaining = compactionsQueued.decrementAndGet()
+        logger.info { "id=$compactionId compactionsRemaining=$compactionsRemaining" }
 
+        for (i in (level) until manifest.levels().size) {
+            if (manifest.level(i).size() > maxLevelSize(i)) {
+                logger.debug { "id=$compactionId compacting level=$i" }
+                doMerge(i, compactionId)
+            } else {
+                logger.debug { "id=$compactionId skipping level=$i" }
+            }
+        }
+    }
+
+    override fun read(table: SSTableMetadata, key: String): Record? = tableCache.read(table, key)
+
+    private fun doMerge(level: Int, compactionId: Long) {
+        val start = System.nanoTime()
+        val mergeTask = mergeStrategy.mergeTargets(level, manifest)
         val targetLevel = level + 1
 
-        val sourceTables = if (level == 0) {
-            manifest.level(level).asList()
-        } else {
-            val nextCompactionCandidate = manifest.level(level).nextCompactionCandidate()
-            if (nextCompactionCandidate != null)
-                listOf(nextCompactionCandidate)
-            else
-                emptyList()
-        }
-
-        // Tables that don't overlap with any table in the destination level can be moved to that level.
-        val destinationTables = mutableListOf<SSTableMetadata>()
-        sourceTables.forEach {
+        val destTables = mutableSetOf<SSTableMetadata>()
+        mergeTask.sourceTables.forEach {
             val overlap = manifest.level(targetLevel).getRange(it.keyRange)
             if (overlap.isEmpty()) {
+                // Tables that don't overlap with any table in the destination level can be moved to that level.
                 moveTableUp(it)
             } else {
-                destinationTables.addAll(overlap)
+                destTables.addAll(overlap)
             }
         }
 
-        if (destinationTables.isEmpty())
+        if (destTables.isEmpty()) {
+            logger.debug("No destination tables. Returning.")
             return
+        }
 
-        val ids = sourceTables.map { it.id }
+        val ids = mergeTask.sourceTables.map { it.id }
 
         val fileManager = BinaryLogManager(fileGenerator)
-        logMergeTask(ids, targetLevel, "started")
+        logMergeTask(ids, targetLevel, compactionId, "started")
         try {
-            val seq = merge(destinationTables + sourceTables)
+            val seq = merge(destTables.toList() + mergeTask.sourceTables)
 
             var totalBytes = 0
             var minKey: String? = null
@@ -121,11 +135,11 @@ class StandardSSTableController(
                 addEntry(entry.first, entry.second)
             }
 
-            for (table in sourceTables) {
+            for (table in mergeTask.sourceTables) {
                 manifest.removeTable(table)
             }
 
-            for (table in destinationTables) {
+            for (table in destTables) {
                 manifest.removeTable(table)
             }
 
@@ -143,19 +157,15 @@ class StandardSSTableController(
                 )
             }
 
-            logMergeTask(ids, targetLevel, "complete", System.nanoTime() - start)
+            logMergeTask(ids, targetLevel, compactionId, "complete", System.nanoTime() - start)
+            logger.info { manifest.toString() }
         } catch (t: Throwable) {
-            logMergeTask(ids, targetLevel, "failed", System.nanoTime() - start, t)
+            logMergeTask(ids, targetLevel, compactionId, "failed", System.nanoTime() - start, t)
             fileManager.close()
         } finally {
-            if (manifest.level(level + 1).size() > maxLevelSize(level + 1)) {
-                addCompactionTask(level + 1)
-            }
             addCleanupTask(level)
         }
     }
-
-    override fun read(table: SSTableMetadata, key: String): Record? = tableCache.read(table, key)
 
     /**
      * Move a table from its current level to the next level. We can safely do this when a table is to be compacted, but
@@ -170,13 +180,14 @@ class StandardSSTableController(
     }
 
     private fun logMergeTask(
-        ids: List<Int>,
+        ids: List<Long>,
         targetLevel: Int,
+        compactionId: Long,
         status: String,
         durationNanos: Long? = null,
         t: Throwable? = null
     ) {
-        val baseMessage = "MergeTask=$ids targetLevel=$targetLevel status=$status"
+        val baseMessage = "MergeTask id=$compactionId targetLevel=$targetLevel tables=$ids status=$status"
         val message = if (durationNanos != null) {
             val durationMillis = durationNanos / 1000000
             val durationSeconds = "%.2f".format(durationMillis / 1000.0)
@@ -192,12 +203,13 @@ class StandardSSTableController(
         }
     }
 
-    override fun addTableFromLog(id: Int): SSTableMetadata = tableCache.write(id)
+    override fun addTableFromLog(id: Long): SSTableMetadata = tableCache.write(id)
 
     override fun addTableFromLog(log: MemTable): SSTableMetadata = tableCache.write(log)
 
     override fun addCompactionTask(level: Int) {
         logger.debug("Adding compaction task for level=$level")
+        compactionsQueued.incrementAndGet()
         compactionPool.submit { merge(level) }
     }
 

@@ -2,8 +2,6 @@ package com.lsmt.table
 
 import com.lsmt.Config
 import com.lsmt.core.Record
-import com.lsmt.core.makeFile
-import com.lsmt.log.createLogReader
 import mu.KotlinLogging
 import java.io.File
 import java.util.*
@@ -29,9 +27,14 @@ interface SSTableManager : AutoCloseable {
     fun addTableFromLog(log: MemTable)
 
     /**
+     * Create a new table from the log file.
+     */
+    fun addTableFromLog(logId: Long)
+
+    /**
      * Asynchronously create a new table from the log file.
      */
-    fun addTableAsync(log: MemTable)
+    fun addTableAsync(log: MemTable, id: Long)
 }
 
 /**
@@ -66,6 +69,8 @@ class StandardSSTableManager(
             Runtime.getRuntime().availableProcessors()
         ) { Thread(it, nextThreadName("sstable")) }
 
+    val activeTableCreationTasks = AtomicInteger()
+
     init {
         if (!rootDirectory.exists()) {
             rootDirectory.mkdir()
@@ -79,26 +84,48 @@ class StandardSSTableManager(
      * level 1.
      */
     override fun addTableFromLog(log: MemTable) {
+        activeTableCreationTasks.incrementAndGet()
         manifest.addTable(tableController.addTableFromLog(log))
+
+        if (manifest.level(0).size() > config.maxYoungTables) {
+            tableController.addCompactionTask(0)
+        }
+        activeTableCreationTasks.decrementAndGet()
+    }
+
+    override fun addTableFromLog(logId: Long) {
+        manifest.addTable(tableController.addTableFromLog(logId))
 
         if (manifest.level(0).size() > config.maxYoungTables) {
             tableController.addCompactionTask(0)
         }
     }
 
-    override fun addTableAsync(log: MemTable) {
-        tableCreationPool.submit {
-            addTableFromLog(log)
+    /**
+     * Switch on the current number of active compactions. If it's too high, drop the memtable and add a task
+     * which will read the log from disk when it eventually runs. This should reduce memory pressure.
+     */
+    override fun addTableAsync(log: MemTable, id: Long) {
+        if (activeTableCreationTasks.get() > config.maxActiveTableCreationTasks) {
+            tableCreationPool.submit {
+                addTableFromLog(id)
+            }
+        } else {
+            tableCreationPool.submit {
+                addTableFromLog(log)
+            }
         }
     }
 
     override fun close() {
         logger.info("Shutting down SSTableManager")
+        logger.info("Active log copy tasks: ${activeTableCreationTasks.get()}")
 
         logger.info("Awaiting thread pool termination")
         tableCreationPool.shutdown()
         tableCreationPool.awaitTermination(1, TimeUnit.MINUTES)
-        logger.info("Thread pool termination complete")
+        logger.info("Thread pool termination complete.")
+        logger.info("Active log copy tasks: ${activeTableCreationTasks.get()}")
 
         logger.info("Shutting down table controller")
         tableController.close()
@@ -107,6 +134,8 @@ class StandardSSTableManager(
         manifest.close()
         logger.info("Done shutting down SSTableManager")
     }
+
+    override fun toString(): String = manifest.toString()
 
     /**
      * Search the young level (level 0) for a key. Tables in the young level may have overlapping keys, so we need to
@@ -130,17 +159,15 @@ class StandardSSTableManager(
      * If the level structure is implemented naively, this will come to O(N).
      */
     private fun getOld(key: String): Record? {
-        manifest.levels()
-            .filterNot { it.key == 0 }
-            .values
-            .forEach {
+        for (level in manifest.levels()) {
+            if (level.key != 0) {
                 // For levels except the young level, there must be at most one table whose range includes each key.
-                val table = it.get(key).firstOrNull()
+                val table = level.value.get(key).firstOrNull()
                 if (table != null) {
                     return tableController.read(table, key)
                 }
             }
-
+        }
         return null
     }
 
@@ -154,30 +181,5 @@ class StandardSSTableManager(
             return "$prefix-${nextThread.getValue(prefix).getAndIncrement()}"
         }
     }
-}
 
-class BinarySSTableReader(
-    private val rootDirectory: File,
-    private val prefix: String = Config.sstablePrefix
-) : SSTableReader {
-    override fun read(table: SSTableMetadata, key: String): Record? {
-        val file = makeFile(rootDirectory, prefix, table.id)
-        val reader = createLogReader(file)
-
-        return reader.readAll()
-            .firstOrNull { it.first == key }
-            ?.second
-    }
-
-    override fun readAll(table: SSTableMetadata): SortedMap<String, Record?> {
-        val file = makeFile(rootDirectory, prefix, table.id)
-        val reader = createLogReader(file)
-        val entries = reader.readAll()
-        val result = TreeMap<String, Record?>()
-        for (entry in entries) {
-            result[entry.first] = entry.second
-        }
-
-        return result
-    }
 }

@@ -64,10 +64,11 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
         TableCache(
             BinarySSTableReader(sstableDir),
             Config.maxCacheSizeMB,
-            walFileGenerator = walFileGenerator,
-            sstableFileGenerator = sstableFileGenerator
+            sstableFileGenerator = sstableFileGenerator,
+            walFileGenerator = walFileGenerator
         ),
-        SynchronizedFileGenerator(sstableDir, Config.sstablePrefix)
+        SynchronizedFileGenerator(sstableDir, Config.sstablePrefix),
+        AdaptiveCompactionStrategy()
     )
 
     val tableManager = StandardSSTableManager(

@@ -3,6 +3,7 @@ package com.lsmt.core
 import com.lsmt.overlaps
 import com.lsmt.table.SSTableMetadata
 import com.lsmt.table.TableKey
+import com.lsmt.table.TableKeyComparator
 import mu.KotlinLogging
 import java.util.*
 
@@ -67,7 +68,7 @@ interface Level : Iterable<SSTableMetadata> {
  */
 class StandardLevel(
     private val id: Int,
-    private val map: TreeMap<TableKey, SSTableMetadata> = TreeMap()
+    private val map: TreeMap<TableKey, SSTableMetadata> = TreeMap(TableKeyComparator())
 ) : Level {
 
     var lastCompaction: SSTableMetadata? = null
@@ -80,12 +81,28 @@ class StandardLevel(
         map.remove(table.key)
     }
 
+    /**
+     * TODO (will) use separate interfaces for level 0, where we might get more than one table for a get() query, and
+     * other levels, where we'll get at most one table.
+     */
     override fun get(key: String): List<SSTableMetadata> {
-        val candidates = map.values.filter { it.keyRange.contains(key) }
-        logger.debug { "StandardLevel.get() level=$id levelSize=${map.size} candidates=${candidates.size}" }
-        return candidates
+        if (id == 0)
+            return map.values.filter { it.keyRange.contains(key) }
+
+        try {
+            val table = map.floorEntry(TableKey(key, 0))?.value
+            if (table != null && table.keyRange.contains(key)) {
+                return listOf(table)
+            }
+        } catch (npe: NullPointerException) {
+            // This should never occur
+            logger.error(npe) { "Caught NPE where it should never occur. Is the map using natural ordering?" }
+        }
+
+        return emptyList()
     }
 
+    // TODO (will) this can be made more efficient by using the NavigableMap methods
     override fun getRange(key: KeyRange): List<SSTableMetadata> = map.values.filter { it.keyRange overlaps key }
 
     override fun nextCompactionCandidate(): SSTableMetadata? = synchronized(this) {
@@ -117,6 +134,18 @@ class StandardLevel(
     override fun asList(): List<SSTableMetadata> = map.values.toList()
 
     override fun iterator(): Iterator<SSTableMetadata> = map.values.iterator()
+
+    override fun toString(): String {
+        val sb = StringBuilder()
+        sb.append("Level id=$id size=${map.size}")
+        if (size() > 0) {
+            val minKey = map.firstEntry().value.minKey
+            val maxKey = map.lastEntry().value.maxKey
+            sb.append(" range={$minKey, $maxKey}")
+        }
+
+        return sb.toString()
+    }
 
     companion object {
         val logger = KotlinLogging.logger {}

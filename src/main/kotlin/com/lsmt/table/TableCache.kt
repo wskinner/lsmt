@@ -4,6 +4,7 @@ import com.lsmt.core.Entry
 import com.lsmt.core.Record
 import com.lsmt.log.BinaryLogManager
 import com.lsmt.log.FileGenerator
+import com.lsmt.log.createLogReader
 import mu.KotlinLogging
 import java.util.*
 import java.util.concurrent.Semaphore
@@ -12,21 +13,21 @@ import java.util.concurrent.atomic.AtomicLong
 class TableCache(
     private val reader: BinarySSTableReader,
     maxSizeMB: Int,
-    private val walFileGenerator: FileGenerator,
-    private val sstableFileGenerator: FileGenerator
+    private val sstableFileGenerator: FileGenerator,
+    private val walFileGenerator: FileGenerator
 ) {
 
     private val cacheMisses = AtomicLong()
     private val operations = AtomicLong()
 
     // Estimate the size of a table in memory using the raw disk size.
-    private val cache = LRUCache<Int, SortedMap<String, Record?>>(maxSizeMB / 2)
+    private val cache = LRUCache<Long, SortedMap<String, Record?>>(maxSizeMB / 2)
 
     private val tableWriteSemaphore = Semaphore(10, true)
 
     fun read(table: SSTableMetadata, key: String): Record? {
         val ops = operations.incrementAndGet()
-        if (ops % 100000 == 0L) {
+        if (ops % 10_000_000 == 0L) {
             logMetrics()
         }
 
@@ -47,7 +48,7 @@ class TableCache(
         }
     }
 
-    fun write(table: Int, key: String, value: Record?) {
+    fun write(table: Long, key: String, value: Record?) {
         val map = cache.getOrPut(table, { TreeMap() })
         map[key] = value
     }
@@ -59,8 +60,25 @@ class TableCache(
      *
      * TODO (will) implement a sort on the raw bytes to avoid object churn
      */
-    fun write(logId: Int): SSTableMetadata {
-        TODO()
+    fun write(logId: Long): SSTableMetadata {
+        BinaryLogManager(sstableFileGenerator).use { writer ->
+            val data = createLogReader(walFileGenerator.path(logId))
+                .readAll()
+                .sortedBy { it.first }
+
+            var totalBytes = 0
+            data.forEach {
+                totalBytes += writer.append(it.first, it.second)
+            }
+            return SSTableMetadata(
+                path = writer.filePath.toString(),
+                minKey = data.first().first,
+                maxKey = data.last().first,
+                level = 0,
+                id = writer.id,
+                fileSize = totalBytes
+            )
+        }
     }
 
     private fun logMetrics() {

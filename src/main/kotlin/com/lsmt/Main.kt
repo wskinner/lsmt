@@ -45,10 +45,11 @@ fun treeFactory(): StandardLogStructuredMergeTree {
                 config.sstablePrefix
             ),
             config.maxCacheSizeMB,
-            walFileGenerator = walFileGenerator,
-            sstableFileGenerator = sstableFileGenerator
+            sstableFileGenerator = sstableFileGenerator,
+            walFileGenerator = walFileGenerator
         ),
-        fileGenerator = sstableFileGenerator
+        fileGenerator = sstableFileGenerator,
+        mergeStrategy = AdaptiveCompactionStrategy()
     )
 
     return StandardLogStructuredMergeTree(

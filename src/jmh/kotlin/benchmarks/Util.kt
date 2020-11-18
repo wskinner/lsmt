@@ -36,15 +36,16 @@ fun treeFactory(): StandardLogStructuredMergeTree {
             config.sstablePrefix
         ),
         config.maxCacheSizeMB,
-        walFileGenerator = walFileGenerator,
-        sstableFileGenerator = sstableFileGenerator
+        sstableFileGenerator = sstableFileGenerator,
+        walFileGenerator = walFileGenerator
     )
 
     val tableController = StandardSSTableController(
         config.maxSstableSize,
         manifestManager,
         tableCache,
-        sstableFileGenerator
+        sstableFileGenerator,
+        AdaptiveCompactionStrategy()
     )
 
     Runtime.getRuntime().addShutdownHook(Thread {
