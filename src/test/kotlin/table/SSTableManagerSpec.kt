@@ -1,5 +1,6 @@
 package table
 
+import ch.qos.logback.classic.Level.DEBUG
 import com.lsmt.Config
 import com.lsmt.core.Entry
 import com.lsmt.core.LogStructuredMergeTree
@@ -31,23 +32,20 @@ class SSTableManagerSpec : StringSpec({
         val tree = tree(manifest)
         fillTree(tree)
         tree.close()
-        (manifest.level(0).size()) shouldBe 2
+        (manifest.level(0).size()) shouldBe 1
+        (manifest.level(1).size()) shouldBe 10
     }
 
-    "test" {
+    "no exception" {
         val random = Random(0)
 
         val tree = treeFactory()
         for (i in 1..100) {
-            val name = ByteArray(random.nextInt(1000) + 5).run {
+            val value = ByteArray(random.nextInt(1000) + 5).apply {
                 random.nextBytes(this)
-                Base64.getEncoder().encodeToString(this)!!
             }
             tree.put(
-                "person$i", sortedMapOf(
-                    "name" to name,
-                    "age" to random.nextInt()
-                )
+                "person$i", value
             )
         }
         tree.close()
@@ -88,7 +86,8 @@ fun tree(manifestManager: ManifestManager): LogStructuredMergeTree {
         },
         tableManager,
         BinaryLogManager(walFileGenerator),
-        Config
+        Config,
+        DEBUG
     ).apply { start() }
 }
 
@@ -96,16 +95,12 @@ fun fillTree(tree: LogStructuredMergeTree): List<Entry> {
     val random = Random(0)
     val entries = mutableListOf<Entry>()
 
-    for (i in 0..100_000) {
+    for (i in 0..150_000) {
         val key = "key$i"
-        val value = TreeMap<String, Any>()
-        val randomBytes = ByteArray(random.nextInt(200) + 25)
-        random.nextBytes(randomBytes)
-        value["key0"] = 1
-        value["key1"] = 10F
-        value["key2"] = 100L
-        value["key3"] = 1000.123
-        value["key4"] = Base64.getEncoder().encodeToString(randomBytes)
+        val value = ByteArray(random.nextInt(200) + 25).apply {
+            random.nextBytes(this)
+        }
+
         tree.put(key, value)
         entries.add(key to value)
     }

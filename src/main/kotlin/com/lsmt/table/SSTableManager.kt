@@ -26,12 +26,12 @@ interface SSTableManager : AutoCloseable {
     /**
      * Create a new table from the log file.
      */
-    fun addTableFromLog(logId: Int)
+    fun addTableFromLog(log: MemTable)
 
     /**
      * Asynchronously create a new table from the log file.
      */
-    fun addTableAsync(logId: Int)
+    fun addTableAsync(log: MemTable)
 }
 
 /**
@@ -80,18 +80,17 @@ class StandardSSTableManager(
      * When the size of the young level exceeds a threshold, merge all young level files into all overlapping files in
      * level 1.
      */
-    override fun addTableFromLog(logId: Int) {
-        manifest.addTable(tableController.addTableFromLog(logId))
+    override fun addTableFromLog(log: MemTable) {
+        manifest.addTable(tableController.addTableFromLog(log))
 
         if (manifest.level(0).size() > config.maxYoungTables) {
             tableController.addCompactionTask(0)
         }
     }
 
-    override fun addTableAsync(logId: Int) {
-        logger.debug("Adding task for log=$logId")
+    override fun addTableAsync(log: MemTable) {
         tableCreationPool.submit {
-            addTableFromLog(logId)
+            addTableFromLog(log)
         }
     }
 

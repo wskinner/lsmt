@@ -23,6 +23,8 @@ interface SSTableController : AutoCloseable {
      */
     fun addTableFromLog(id: Int): SSTableMetadata
 
+    fun addTableFromLog(log: MemTable): SSTableMetadata
+
     fun addCompactionTask(level: Int)
 }
 
@@ -73,6 +75,9 @@ class StandardSSTableController(
                 destinationTables.addAll(overlap)
             }
         }
+
+        if (destinationTables.isEmpty())
+            return
 
         val ids = sourceTables.map { it.id }
 
@@ -184,6 +189,8 @@ class StandardSSTableController(
     }
 
     override fun addTableFromLog(id: Int): SSTableMetadata = tableCache.write(id)
+
+    override fun addTableFromLog(log: MemTable): SSTableMetadata = tableCache.write(log)
 
     override fun addCompactionTask(level: Int) {
         logger.debug("Adding compaction task for level=$level")

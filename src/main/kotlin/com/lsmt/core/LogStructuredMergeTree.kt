@@ -8,6 +8,7 @@ import com.lsmt.table.SSTableManager
 import mu.KotlinLogging
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicLong
 
 interface LogStructuredMergeTree : AutoCloseable {
     fun start()
@@ -27,6 +28,8 @@ class StandardLogStructuredMergeTree(
     logLevel: Level = Level.INFO
 ) : LogStructuredMergeTree {
 
+    private val writeCounter = AtomicLong()
+
     private var memTable = memTableFactory()
 
     init {
@@ -42,8 +45,14 @@ class StandardLogStructuredMergeTree(
         memTable.put(key, value)
 
         if (writeAheadLog.size() > config.maxWalSize) {
-            ssTable.addTableAsync(writeAheadLog.rotate())
+            ssTable.addTableAsync(memTable)
+            writeAheadLog.rotate()
             memTable = memTableFactory()
+        }
+
+        val count = writeCounter.incrementAndGet()
+        if (count % 1_000_000 == 0L) {
+            logger.info("Processed $count writes")
         }
     }
 
@@ -62,7 +71,8 @@ class StandardLogStructuredMergeTree(
      */
     override fun close() {
         logger.info("Shutting down LSMT")
-        ssTable.addTableFromLog(writeAheadLog.rotate())
+        if (memTable.size() > 0)
+            ssTable.addTableFromLog(memTable)
         writeAheadLog.close()
         ssTable.close()
         logger.info("Done shutting down LSMT")

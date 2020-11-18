@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @Threads(1)
-@Measurement(iterations = 5)
+@Measurement(iterations = 1)
 @Fork(1)
 @Warmup(iterations = 1)
 open class SequentialReads {

@@ -20,15 +20,28 @@ fun ByteArray.toFloat(): Float = Bytes.bytesToFloat(this)
 fun ByteArray.toDouble(): Double = Bytes.bytesToDouble(this)
 
 fun InputStream.counting() = CountingInputStream(this)
+fun InputStream.readInt() = readNBytes(4).toInt()
+fun InputStream.readString(len: Int) = readNBytes(len).decodeToString()
 
 fun Record.toSSTableMetadata(): SSTableMetadata? {
-    return com.lsmt.table.SSTableMetadata(
-        (this["path"] ?: return null) as String,
-        (this["minKey"] ?: return null) as String,
-        (this["maxKey"] ?: return null) as String,
-        (this["level"] ?: return null) as Int,
-        (this["id"] ?: return null) as Int,
-        (this["fileSize"] ?: return null) as Int
+    val stream = inputStream()
+    val pathLength = stream.readInt()
+    val path = stream.readString(pathLength)
+    val minKeyLength = stream.readInt()
+    val minKey = stream.readString(minKeyLength)
+    val maxKeyLength = stream.readInt()
+    val maxKey = stream.readString(maxKeyLength)
+    val level = stream.readInt()
+    val id = stream.readInt()
+    val fileSize = stream.readInt()
+
+    return SSTableMetadata(
+        path,
+        minKey,
+        maxKey,
+        level,
+        id,
+        fileSize
     )
 }
 

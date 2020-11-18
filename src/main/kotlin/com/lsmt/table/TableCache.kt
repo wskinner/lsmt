@@ -4,9 +4,9 @@ import com.lsmt.core.Entry
 import com.lsmt.core.Record
 import com.lsmt.log.BinaryLogManager
 import com.lsmt.log.FileGenerator
-import com.lsmt.log.createLogReader
 import mu.KotlinLogging
 import java.util.*
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicLong
 
 class TableCache(
@@ -21,6 +21,8 @@ class TableCache(
 
     // Estimate the size of a table in memory using the raw disk size.
     private val cache = LRUCache<Int, SortedMap<String, Record?>>(maxSizeMB / 2)
+
+    private val tableWriteSemaphore = Semaphore(10, true)
 
     fun read(table: SSTableMetadata, key: String): Record? {
         val ops = operations.incrementAndGet()
@@ -51,43 +53,51 @@ class TableCache(
     }
 
     /**
-     * Create a new SSTable from the log with the given ID. Return its metadata.
+     * Create a new SSTable from the log with the given ID. Return its metadata. Because this operation currently
+     * requires reading the entire table into memory and sorting it, a semaphore is used to limit the number of threads
+     * concurrently performing this function.
+     *
+     * TODO (will) implement a sort on the raw bytes to avoid object churn
      */
     fun write(logId: Int): SSTableMetadata {
-        logger.debug("Writing table for log=$logId")
-        val logPath = walFileGenerator.path(logId)
-        BinaryLogManager(sstableFileGenerator).use { writer ->
-            val data = try {
-                val data = createLogReader(logPath).readAll().sortedBy { it.first }
-                data
-            } catch (e: Throwable) {
-                throw e
-            }
-
-            val result = TreeMap<String, Record?>()
-            var totalBytes = 0
-            data.forEach { entry ->
-                result[entry.first] = entry.second
-                totalBytes += writer.append(entry.first, entry.second)
-            }
-
-            val tableMeta = SSTableMetadata(
-                path = writer.filePath.toString(),
-                minKey = data.first().first,
-                maxKey = data.last().first,
-                level = 0,
-                id = writer.id,
-                fileSize = totalBytes
-            )
-
-            cache[tableMeta.id] = result
-            return tableMeta
-        }
+        TODO()
     }
 
     private fun logMetrics() {
         val hitRate = "%.2f".format((operations.get() - cacheMisses.get()) / operations.get().toDouble())
         logger.info("CachedSSTableReader metrics: operations=${operations.get()} cacheMisses=${cacheMisses.get()} hitRate=$hitRate")
+    }
+
+    fun write(log: MemTable): SSTableMetadata {
+        try {
+            tableWriteSemaphore.acquire()
+            logger.debug("write() started")
+            BinaryLogManager(sstableFileGenerator).use { writer ->
+                val result = TreeMap<String, Record?>()
+                var totalBytes = 0
+                log.forEach { entry ->
+                    result[entry.key] = entry.value
+                    totalBytes += writer.append(entry.key, entry.value)
+                }
+
+                val tableMeta = SSTableMetadata(
+                    path = writer.filePath.toString(),
+                    minKey = log.first().key,
+                    maxKey = log.last().key,
+                    level = 0,
+                    id = writer.id,
+                    fileSize = totalBytes
+                )
+
+                synchronized(cache) {
+                    cache[tableMeta.id] = result
+                }
+                return tableMeta
+            }
+        } finally {
+            logger.debug("write() log=$log finished")
+            tableWriteSemaphore.release()
+        }
     }
 
     companion object {

@@ -13,8 +13,8 @@ import java.util.*
 
 fun treeFactory(): StandardLogStructuredMergeTree {
     val manifestFile = createTempFile("manifest").apply { deleteOnExit() }
-    val sstableDir = createTempDir("sstable").apply { deleteOnExit() }
-    val walDir = createTempDir("wal").apply { deleteOnExit() }
+    val sstableDir = createTempDir("sstable")
+    val walDir = createTempDir("wal")
 
     val config = parseConfig()
 
@@ -46,6 +46,21 @@ fun treeFactory(): StandardLogStructuredMergeTree {
         tableCache,
         sstableFileGenerator
     )
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        println("Deleting all sstable and wal files")
+        val sstableResult = sstableDir.deleteRecursively()
+        val walResult = walDir.deleteRecursively()
+        if (sstableResult)
+            println("sstables deleted")
+        else
+            println("sstables not deleted")
+
+        if (walResult)
+            println("wals deleted")
+        else
+            println("wals not deleted")
+    })
 
     return StandardLogStructuredMergeTree(
         {

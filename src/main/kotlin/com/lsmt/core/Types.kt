@@ -4,7 +4,7 @@ import java.nio.file.Path
 import java.util.*
 
 typealias Compactor = Runnable
-typealias Record = Map<String, Any>
+typealias Record = ByteArray
 typealias Entry = Pair<String, Record?>
 typealias LevelIndex = SortedMap<Int, Level>
 typealias NumberedFile = Pair<Int, Path>

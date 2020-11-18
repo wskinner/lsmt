@@ -5,8 +5,10 @@ import com.lsmt.log.BinaryLogReader
 import com.lsmt.log.LogWriter
 import com.lsmt.table.StandardManifestManager.Companion.add
 import com.lsmt.table.StandardManifestManager.Companion.remove
+import com.lsmt.toByteArray
 import com.lsmt.toSSTableMetadata
 import mu.KotlinLogging
+import java.io.ByteArrayOutputStream
 import java.util.*
 
 /**
@@ -54,14 +56,31 @@ data class SSTableMetadata(
     val key: TableKey = TableKey(minKey, id)
 ) {
 
-    fun toRecord(): SortedMap<String, Any> {
-        val map = TreeMap<String, Any>()
-        map["path"] = path
-        map["minKey"] = minKey
-        map["maxKey"] = maxKey
-        map["level"] = level
-        map["id"] = id
-        return map
+    /**
+     * Format:
+     * path length   := int32
+     * path          := uint8[path length]
+     * minKey length := int32
+     * minKey        := uint8[minkKey length]
+     * maxKey length := int32
+     * maxKey        := uint8[maxKey length]
+     * level         := int32
+     * id            := int32
+     * fileSize      := int32
+     *
+     */
+    fun toRecord(): ByteArray {
+        val os = ByteArrayOutputStream()
+        os.write(path.length.toByteArray())
+        os.write(path.toByteArray())
+        os.write(minKey.length.toByteArray())
+        os.write(minKey.toByteArray())
+        os.write(maxKey.length.toByteArray())
+        os.write(maxKey.toByteArray())
+        os.write(level.toByteArray())
+        os.write(id.toByteArray())
+        os.write(fileSize.toByteArray())
+        return os.toByteArray()
     }
 }
 
