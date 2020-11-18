@@ -3,7 +3,9 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.OutputStream
 import java.nio.file.Path
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.collections.ArrayList
 import kotlin.math.max
 
 /**
@@ -11,7 +13,7 @@ import kotlin.math.max
  * they are in.
  */
 interface Manifest {
-    fun tables(level: Int): List<SSTableMetadata>
+    fun tables(): TreeMap<Int, MutableList<SSTableMetadata>>
 
     fun addTable(table: SSTableMetadata)
 
@@ -23,7 +25,9 @@ interface Manifest {
 data class KeyRange(
     val first: String,
     val last: String
-)
+) {
+    fun contains(key: String) = key in first..last
+}
 
 data class SSTableMetadata(
     val name: String,
@@ -33,7 +37,7 @@ data class SSTableMetadata(
 
 sealed class Operation {
     companion object {
-        data class Create(val tables: HashMap<Int, MutableList<SSTableMetadata>>) : Operation()
+        data class Create(val tables: TreeMap<Int, MutableList<SSTableMetadata>>) : Operation()
         data class Add(val table: SSTableMetadata) : Operation()
         data class Remove(val table: SSTableMetadata) : Operation()
 
@@ -42,7 +46,7 @@ sealed class Operation {
         fun deserialize(string: String): Operation? =
             when (string.first()) {
                 '0' -> dslJson.deserialize(
-                    HashMap<Int, MutableList<SSTableMetadata>>().javaClass,
+                    TreeMap<Int, MutableList<SSTableMetadata>>().javaClass,
                     string.byteInputStream()
                 )?.run { Create(this) }
                 '1' -> dslJson.deserialize(SSTableMetadata::class.java, string.byteInputStream())?.run { Add(this) }
@@ -73,11 +77,11 @@ sealed class Operation {
  */
 class StandardManifest(private val rootDirectory: Path) : Manifest, LSMRunnable {
     private lateinit var bos: BufferedOutputStream
-    private lateinit var allTables: MutableMap<Int, MutableList<SSTableMetadata>>
+    private lateinit var allTables: TreeMap<Int, MutableList<SSTableMetadata>>
     private val rootDirectoryFile = rootDirectory.toFile()
     private val currentFileId = AtomicInteger(largestManifestID())
 
-    override fun tables(level: Int): List<SSTableMetadata> = allTables[level] ?: emptyList()
+    override fun tables(): TreeMap<Int, MutableList<SSTableMetadata>> = allTables
 
     override fun addTable(table: SSTableMetadata) {
         Operation.Companion.Add(table).serialize(bos)
@@ -91,8 +95,14 @@ class StandardManifest(private val rootDirectory: Path) : Manifest, LSMRunnable 
 
     override fun apply(operation: Operation) {
         when (operation) {
-            is Operation.Companion.Create -> allTables = operation.tables.withDefault { ArrayList() }
-            is Operation.Companion.Add -> allTables[operation.table.level]?.add(operation.table)
+            is Operation.Companion.Create -> allTables = operation.tables
+            is Operation.Companion.Add -> {
+                if (!allTables.containsKey(operation.table.level)) {
+                    allTables[operation.table.level] = ArrayList()
+                }
+
+                allTables[operation.table.level]?.add(operation.table)
+            }
             is Operation.Companion.Remove -> allTables[operation.table.level]?.remove(operation.table)
         }
     }

@@ -1,6 +1,3 @@
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import kotlin.math.max
 
 interface LogStructuredMergeTree : LSMRunnable {
     fun put(key: String, value: Map<String, Any>)
@@ -9,6 +6,11 @@ interface LogStructuredMergeTree : LSMRunnable {
 
     fun delete(key: String)
 }
+
+data class Record(
+    val sequence: Long,
+    val value: Map<String, Any>
+)
 
 class StandardLogStructuredMergeTree(
     private val memTableFactory: () -> MemTable,
@@ -20,8 +22,8 @@ class StandardLogStructuredMergeTree(
     private var memTable = memTableFactory()
 
     override fun put(key: String, value: Map<String, Any>) {
-        writeAheadLog.append(key, value)
-        memTable.put(key, value)
+        val seq = writeAheadLog.append(key, value)
+        memTable.put(key, Record(seq, value))
 
         if (memTable.size() > maxMemtableSize) {
             synchronized(memTable) {
@@ -47,4 +49,7 @@ class StandardLogStructuredMergeTree(
         ssTable.stop()
     }
 
+    companion object {
+        const val SEQUENCE = "SEQ_nlXo9jaJFBMTjkWyeg"
+    }
 }

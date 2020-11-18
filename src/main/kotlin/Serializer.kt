@@ -20,7 +20,7 @@ class StandardSerializer : Serializer {
     }
 
     override fun deserialize(file: File): MemTable {
-        val contents = dslJson.deserialize(TreeMap<String, Map<String, Any>>().javaClass, file.inputStream())!!
+        val contents = dslJson.deserialize(TreeMap<String, Record>().javaClass, file.inputStream())!!
         return StandardMemTable(contents)
     }
 

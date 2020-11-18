@@ -1,4 +1,5 @@
 import java.io.File
+import java.nio.file.Path
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -33,7 +34,10 @@ fun main() {
         },
         StandardSSTableManager(
             File("./build/sstables"),
-            StandardSerializer()
+            StandardSerializer(),
+            StandardManifest(
+                Path.of("./build/sstables/manifest.txt")
+            )
         ),
         StandardWriteAheadLogManager(
             File("./build/wal.txt")
@@ -41,7 +45,7 @@ fun main() {
     ).apply { start() }
 
     thread(start = true) {
-        test(10, 100_0000, tree)
+        test(5, 100_0000, tree)
     }.join()
 
 //    print("Reads")
