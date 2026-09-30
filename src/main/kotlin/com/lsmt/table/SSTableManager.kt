@@ -5,6 +5,7 @@ import com.lsmt.core.MemTable
 import com.lsmt.domain.Key
 import com.lsmt.domain.Record
 import com.lsmt.manifest.ManifestManager
+import com.lsmt.manifest.SSTableMetadata
 import mu.KotlinLogging
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -35,8 +36,9 @@ interface SSTableManager : AutoCloseable {
 
     /**
      * Asynchronously create a new table from the log file.
+     * [onInstalled] runs after the table has been added to the manifest.
      */
-    fun addTableAsync(log: MemTable, id: Long)
+    fun addTableAsync(log: MemTable, id: Long, onInstalled: () -> Unit = {})
 }
 
 /**
@@ -76,36 +78,51 @@ class StandardSSTableManager(
      * level 1.
      */
     override fun addTableFromLog(log: MemTable) {
-        activeTableCreationTasks.incrementAndGet()
-        manifest.addTable(tableController.addTableFromLog(log))
-
-        if (manifest.level(0).size() > config.maxYoungTables) {
-            tableController.addCompactionTask(0)
-        }
-        activeTableCreationTasks.decrementAndGet()
+        installMemTable(log, tableController.allocateTableId())
     }
 
     override fun addTableFromLog(logId: Long) {
-        manifest.addTable(tableController.addTableFromLog(logId))
-
-        if (manifest.level(0).size() > config.maxYoungTables) {
-            tableController.addCompactionTask(0)
-        }
+        installWal(logId, tableController.allocateTableId())
     }
 
     /**
      * Switch on the current number of active compactions. If it's too high, drop the memtable and add a task
      * which will read the log from disk when it eventually runs. This should reduce memory pressure.
+     *
+     * The SSTable id is reserved here, in caller order, so a newer memtable cannot receive an older id when flushes
+     * run in parallel.
      */
-    override fun addTableAsync(log: MemTable, id: Long) {
+    override fun addTableAsync(log: MemTable, id: Long, onInstalled: () -> Unit) {
+        val tableId = tableController.allocateTableId()
         if (activeTableCreationTasks.get() > config.maxActiveTableCreationTasks) {
             tableCreationPool.submit {
-                addTableFromLog(id)
+                installWal(id, tableId)
+                onInstalled()
             }
         } else {
             tableCreationPool.submit {
-                addTableFromLog(log)
+                installMemTable(log, tableId)
+                onInstalled()
             }
+        }
+    }
+
+    private fun installMemTable(log: MemTable, tableId: Long) {
+        activeTableCreationTasks.incrementAndGet()
+        try {
+            manifest.addTable(tableController.addTableFromLog(log, tableId))
+            if (youngTableCount() > config.maxYoungTables) {
+                tableController.addCompactionTask(0)
+            }
+        } finally {
+            activeTableCreationTasks.decrementAndGet()
+        }
+    }
+
+    private fun installWal(walId: Long, tableId: Long) {
+        manifest.addTable(tableController.addTableFromLog(walId, tableId))
+        if (youngTableCount() > config.maxYoungTables) {
+            tableController.addCompactionTask(0)
         }
     }
 
@@ -134,12 +151,15 @@ class StandardSSTableManager(
      * scan all the tables that might contain the most recent record.
      *
      */
-    private fun getYoung(key: Key): Record? =
-        manifest.level(0)
-            .get(key)
+    private fun getYoung(key: Key): Record? {
+        val tables = synchronized(manifest) {
+            manifest.level(0).get(key).toList()
+        }
+        return tables
             .map { it.id to tableController.read(it, key) }
             .maxByOrNull { it.first }
             ?.second
+    }
 
     /**
      * Search all the levels except level 0 for a key. The search proceeds top down, so the newest occurrence of the key
@@ -152,16 +172,24 @@ class StandardSSTableManager(
      * If the level structure is implemented naively, this will come to O(N).
      */
     private fun getOld(key: Key): Record? {
-        for (level in manifest.levels()) {
-            if (level.key != 0) {
-                // For levels except the young level, there must be at most one table whose range includes each key.
-                val table = level.value.get(key).firstOrNull()
-                if (table != null) {
-                    return tableController.read(table, key)
+        val table = synchronized(manifest) {
+            var found: SSTableMetadata? = null
+            for (level in manifest.levels()) {
+                if (level.key != 0) {
+                    // For levels except the young level, there must be at most one table whose range includes each key.
+                    found = level.value.get(key).firstOrNull()
+                    if (found != null) {
+                        break
+                    }
                 }
             }
+            found
         }
-        return null
+        return table?.let { tableController.read(it, key) }
+    }
+
+    private fun youngTableCount(): Int = synchronized(manifest) {
+        manifest.level(0).size()
     }
 
     companion object {
