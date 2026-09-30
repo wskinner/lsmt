@@ -19,7 +19,7 @@ gradle test
 ```
 
 # Limitations
-* The database is not thread-safe for writes. If you need to read and write from multiple threads, you must handle synchronization yourself.
+* Writes are serialized. Concurrent `put` and `delete` calls are safe, and reads may run alongside them.
 * No client-server support.
 * Failure recovery is not yet implemented.
 

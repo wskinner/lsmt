@@ -42,12 +42,10 @@ fun main() {
     tree.close()
 }
 
-fun treeFactory(): StandardLogStructuredMergeTree {
+fun treeFactory(config: Config = parseConfig()): StandardLogStructuredMergeTree {
     val manifestFile = createTempFile("manifest").apply { deleteOnExit() }
     val sstableDir = createTempDir("sstable").apply { deleteOnExit() }
     val walDir = createTempDir("wal").apply { deleteOnExit() }
-
-    val config = parseConfig()
 
     val manifestManager = StandardManifestManager(
         BinaryManifestWriter(

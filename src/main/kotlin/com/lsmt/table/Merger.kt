@@ -148,8 +148,9 @@ class Merger(
     private fun moveTableUp(table: SSTableMetadata) {
         StandardSSTableController.logger.debug("Moving table. table=${table.id} newLevel=${table.level + 1}")
         val newTableMeta = table.copy(level = table.level + 1)
-        manifest.removeTable(table)
+        // Install the destination before removing the source so a concurrent get cannot miss the table.
         manifest.addTable(newTableMeta)
+        manifest.removeTable(table)
     }
 
     companion object {

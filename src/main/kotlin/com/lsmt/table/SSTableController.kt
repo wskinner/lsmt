@@ -23,11 +23,20 @@ interface SSTableController : AutoCloseable {
     fun read(table: SSTableMetadata, key: Key): Record?
 
     /**
+     * Reserve an SSTable id. Callers that queue flushes must reserve in memtable order, before the work runs.
+     */
+    fun allocateTableId(): Long
+
+    /**
      * Create a new table file from the log and return the metadata. The caller is responsible for updating the index.
      */
     fun addTableFromLog(id: Long): SSTableMetadata
 
+    fun addTableFromLog(walId: Long, tableId: Long): SSTableMetadata
+
     fun addTableFromLog(log: MemTable): SSTableMetadata
+
+    fun addTableFromLog(log: MemTable, tableId: Long): SSTableMetadata
 
     fun addCompactionTask(level: Int)
 }
@@ -99,9 +108,15 @@ class StandardSSTableController(
         addCleanupTask(level)
     }
 
-    override fun addTableFromLog(id: Long): SSTableMetadata = tableCache.write(id)
+    override fun allocateTableId(): Long = fileGenerator.next().first
 
-    override fun addTableFromLog(log: MemTable): SSTableMetadata = tableCache.write(log)
+    override fun addTableFromLog(id: Long): SSTableMetadata = addTableFromLog(id, allocateTableId())
+
+    override fun addTableFromLog(walId: Long, tableId: Long): SSTableMetadata = tableCache.write(walId, tableId)
+
+    override fun addTableFromLog(log: MemTable): SSTableMetadata = addTableFromLog(log, allocateTableId())
+
+    override fun addTableFromLog(log: MemTable, tableId: Long): SSTableMetadata = tableCache.write(log, tableId)
 
     override fun addCompactionTask(level: Int) {
         logger.debug("Adding compaction task for level=$level")

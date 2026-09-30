@@ -76,8 +76,8 @@ class TableCache(
      *
      * TODO (will) implement a sort on the raw bytes to avoid object churn
      */
-    fun write(logId: Long): SSTableMetadata {
-        val writer = createSSTableManager(sstableFileGenerator)
+    fun write(logId: Long, tableId: Long): SSTableMetadata {
+        val writer = createSSTableManager(sstableFileGenerator, tableId)
         val data = createLogReader(walFileGenerator.path(logId))
             .readAll()
             .sortedBy { it.first }
@@ -96,11 +96,11 @@ class TableCache(
         )
     }
 
-    fun write(log: MemTable): SSTableMetadata {
+    fun write(log: MemTable, tableId: Long): SSTableMetadata {
         try {
             tableWriteSemaphore.acquire()
             logger.debug("write() started")
-            val logManager = createSSTableManager(sstableFileGenerator)
+            val logManager = createSSTableManager(sstableFileGenerator, tableId)
             logManager.use { writer ->
                 val result = TreeMap<Key, Record?>()
                 log.forEach { entry ->

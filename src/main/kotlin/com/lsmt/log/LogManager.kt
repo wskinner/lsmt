@@ -1,6 +1,7 @@
 package com.lsmt.log
 
 import com.lsmt.domain.Key
+import com.lsmt.domain.NumberedFile
 import com.lsmt.domain.Record
 import com.lsmt.log.BinaryLogWriter.Companion.BLOCK_SIZE
 import com.lsmt.table.SSTableWriter
@@ -33,6 +34,7 @@ data class Header(val crc: Int, val length: Int, val type: Int)
  */
 class BinaryLogManager(
     private val fileGenerator: FileGenerator,
+    initialFile: NumberedFile? = null,
     private inline val fileWriterFactory: (OutputStream) -> LogWriter
 ) : LogManager {
     var id: Long
@@ -42,7 +44,7 @@ class BinaryLogManager(
         private set
 
     init {
-        val numberedFile = fileGenerator.next()
+        val numberedFile = initialFile ?: fileGenerator.next()
         id = numberedFile.first
         filePath = numberedFile.second
     }
@@ -98,4 +100,7 @@ fun createWalManager(fileGenerator: FileGenerator): BinaryLogManager =
 
 fun createSSTableManager(fileGenerator: FileGenerator): BinaryLogManager =
     BinaryLogManager(fileGenerator) { SSTableWriter(it) }
+
+fun createSSTableManager(fileGenerator: FileGenerator, tableId: Long): BinaryLogManager =
+    BinaryLogManager(fileGenerator, tableId to fileGenerator.path(tableId)) { SSTableWriter(it) }
 
